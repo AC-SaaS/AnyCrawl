@@ -108,7 +108,7 @@ export type SearchRequest = {
     lang?: any;
     country?: any;
     scrape_options?: (Omit<ScrapeOptionsInput, 'retry'> & { engine: Engine });
-    safeSearch?: number | null;
+    safe_search?: number | null;
 };
 
 export type SearchResult = {

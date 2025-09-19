@@ -2,7 +2,7 @@ import { getTemplate } from "@anycrawl/db";
 import { AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { TemplateClient } from "@anycrawl/template-client";
 import { mergeOptionsWithTemplate } from "./optionMerger.js";
-import { ScrapeOptions, CrawlOptions, SearchOptions } from "@anycrawl/libs";
+import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema } from "@anycrawl/libs";
 
 /**
  * Template processing result
@@ -168,7 +168,7 @@ export class TemplateHandler {
     public static async getTemplateOptionsForMerge(
         templateId: string,
         templateType: "scrape" | "crawl" | "search"
-    ): Promise<{ success: boolean; templateOptions?: ScrapeOptions | CrawlOptions | SearchOptions; error?: string }> {
+    ): Promise<{ success: boolean; templateOptions?: TemplateScrapeSchema | TemplateCrawlSchema | TemplateSearchSchema; error?: string }> {
         try {
             const templateClient = this.getTemplateClient();
             const template = await templateClient.getTemplate(templateId);

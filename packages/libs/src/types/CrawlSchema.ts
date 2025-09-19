@@ -40,9 +40,7 @@ const crawlOptionsSchema = z.object({
      */
     limit: z.number().min(1).max(50000).default(100)
 });
-
-// Extract scrape option fields from baseSchema for reuse (same as ScrapeSchema)
-const scrapeOptionsInputSchema = baseSchema
+const selectedSchema = baseSchema
     .pick({
         proxy: true,
         formats: true,
@@ -52,55 +50,56 @@ const scrapeOptionsInputSchema = baseSchema
         exclude_tags: true,
         json_options: true,
         extract_source: true,
-    })
+    });
+// Extract scrape option fields from baseSchema for reuse (same as ScrapeSchema)
+const scrapeOptionsInputSchema = selectedSchema
     .strict();
 
 type ScrapeOptionsInput = z.infer<typeof scrapeOptionsInputSchema>;
 
-// Use the full base schema to inherit all scrape parameters
-export const crawlSchema = baseSchema
+const mergedSchema = baseSchema
     .extend({
         // Reuse the strict scrape options input schema for validation
         scrape_options: scrapeOptionsInputSchema.partial().optional(),
     })
-    .merge(crawlOptionsSchema)
-    .strict() // Make the entire schema strict to catch unknown fields
-    .transform((data) => {
-        // Normalize scrape options using scrapeSchema to avoid duplication
-        const normalizedScrapeOptions = data.scrape_options
-            ? scrapeSchema.parse({
-                url: data.url,
-                engine: data.engine,
-                // pass through only allowed scrape option fields; defaults are applied by scrapeSchema
-                ...(data.scrape_options as Partial<ScrapeOptionsInput>),
-            }).options
-            : scrapeSchema.parse(data).options;
+    .merge(crawlOptionsSchema);
 
-        return {
+const transformSchema = (data: z.infer<typeof mergedSchema>) => {
+    // Normalize scrape options using scrapeSchema to avoid duplication
+    const normalizedScrapeOptions = data.scrape_options
+        ? scrapeSchema.parse({
             url: data.url,
             engine: data.engine,
-            options: {
-                templateId: data.template_id,
-                excludePaths: data.exclude_paths,
-                includePaths: data.include_paths,
-                maxDepth: data.max_depth,
-                limit: data.limit,
-                strategy: data.strategy,
-                scrape_options: normalizedScrapeOptions,
-            }
-        };
+            // pass through only allowed scrape option fields; defaults are applied by scrapeSchema
+            ...(data.scrape_options as Partial<ScrapeOptionsInput>),
+        }).options
+        : scrapeSchema.parse(data).options;
+
+    return {
+        url: data.url,
+        engine: data.engine,
+        options: {
+            template_id: data.template_id,
+            exclude_paths: data.exclude_paths,
+            include_paths: data.include_paths,
+            max_depth: data.max_depth,
+            limit: data.limit,
+            strategy: data.strategy,
+            scrape_options: normalizedScrapeOptions,
+        }
+    };
+}
+
+// Use the full base schema to inherit all scrape parameters
+export const crawlSchema = mergedSchema
+    .strict() // Make the entire schema strict to catch unknown fields
+    .transform((data) => {
+        return transformSchema(data);
     });
 
 export type CrawlSchema = z.infer<typeof crawlSchema>;
 
-export const TemplateCrawlSchema = crawlSchema.transform((data: z.infer<typeof crawlSchema>) => {
-    const { templateId, ...optionsWithoutTemplate } = data.options;
-    return {
-        url: data.url,
-        engine: data.engine,
-        ...optionsWithoutTemplate,
-    };
-});
+export const TemplateCrawlSchema = mergedSchema.partial();
 
 export type TemplateCrawlSchema = z.infer<typeof TemplateCrawlSchema>;
 

@@ -1840,7 +1840,7 @@
                     ],
                     "description": "Optional scraping options. If provided, the service scrapes result URLs (capped by limit across all pages) and merges outputs (e.g., html, markdown, metadata) into each item."
                   },
-                  "safeSearch": {
+                  "safe_search": {
                     "type": [
                       "number",
                       "null"

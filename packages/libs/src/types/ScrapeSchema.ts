@@ -20,7 +20,7 @@ export const scrapeSchema = pickedSchema.transform((data: z.infer<typeof pickedS
     url: data.url,
     engine: data.engine,
     options: {
-        templateId: data.template_id,
+        template_id: data.template_id,
         proxy: data.proxy,
         formats: data.formats,
         timeout: data.timeout,
@@ -33,14 +33,24 @@ export const scrapeSchema = pickedSchema.transform((data: z.infer<typeof pickedS
     }
 }));
 
-export const TemplateScrapeSchema = scrapeSchema.transform((data: z.infer<typeof scrapeSchema>) => {
-    const { templateId, ...optionsWithoutTemplate } = data.options;
-    return {
-        url: data.url,
-        engine: data.engine,
-        ...optionsWithoutTemplate,
-    };
-});
+// create a template schema that inherits scrapeSchema but all attributes are optional
+const templateScrapeInputSchema = baseSchema
+    .pick({
+        url: true,
+        engine: true,
+        proxy: true,
+        formats: true,
+        timeout: true,
+        retry: true,
+        wait_for: true,
+        include_tags: true,
+        exclude_tags: true,
+        json_options: true,
+        extract_source: true,
+    })
+    .partial(); // to make all attributes optional
+
+export const TemplateScrapeSchema = templateScrapeInputSchema;
 
 export type TemplateScrapeSchema = z.infer<typeof TemplateScrapeSchema>;
 export type ScrapeSchema = z.infer<typeof scrapeSchema>;

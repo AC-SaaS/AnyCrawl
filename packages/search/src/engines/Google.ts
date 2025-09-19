@@ -23,7 +23,7 @@ export class GoogleSearchEngine implements SearchEngine {
     };
 
     // Safe search mapping
-    private readonly safeSearchMap: Record<number, string> = {
+    private readonly safe_searchMap: Record<number, string> = {
         0: "off",
         1: "medium",
         2: "high",
@@ -136,8 +136,8 @@ export class GoogleSearchEngine implements SearchEngine {
         }
 
         // Add safe search if specified
-        if (options.safeSearch !== undefined && options.safeSearch !== null) {
-            params.append("safe", this.safeSearchMap[options.safeSearch] || "medium");
+        if (options.safe_search !== undefined && options.safe_search !== null) {
+            params.append("safe", this.safe_searchMap[options.safe_search] || "medium");
         }
 
         return `${this.baseUrl}?${params.toString()}`;

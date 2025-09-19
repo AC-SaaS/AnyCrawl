@@ -302,10 +302,10 @@ export abstract class BaseEngine {
     protected async handleCrawlLogic(context: CrawlingContext, data: any): Promise<void> {
 
         const limit = context.request.userData.crawl_options?.limit || 10;
-        const maxDepth = context.request.userData.crawl_options?.maxDepth || 10;
+        const maxDepth = context.request.userData.crawl_options?.max_depth || 10;
         const strategy = context.request.userData.crawl_options?.strategy || 'same-domain';
-        const includePaths = context.request.userData.crawl_options?.includePaths || [];
-        const excludePaths = context.request.userData.crawl_options?.excludePaths || [];
+        const includePaths = context.request.userData.crawl_options?.include_paths || [];
+        const excludePaths = context.request.userData.crawl_options?.exclude_paths || [];
 
         try {
             // If already finalized or enqueued reached limit, skip enqueue

@@ -27,7 +27,7 @@ const searchSchema = z.object({
     lang: z.custom<SearchLocale>().optional(),
     country: z.custom<SearchLocale>().optional(),
     scrape_options: scrapeOptionsInputSchema.optional(),
-    safeSearch: z.number().min(0).max(2).nullable().optional(), // 0: off, 1: medium, 2: high, null: default (Google only)
+    safe_search: z.number().min(0).max(2).nullable().optional(), // 0: off, 1: medium, 2: high, null: default (Google only)
 });
 export const TemplateSearchSchema = searchSchema.pick({
     engine: true,
@@ -38,7 +38,7 @@ export const TemplateSearchSchema = searchSchema.pick({
     lang: true,
     country: true,
     scrape_options: true,
-    safeSearch: true
+    safe_search: true
 });
 export type TemplateSearchSchema = z.infer<typeof TemplateSearchSchema>;
 export type SearchSchema = z.infer<typeof searchSchema>;

@@ -17,9 +17,9 @@ export interface RequestTaskOptions {
 }
 
 export interface CrawlOptions {
-    excludePaths?: string[];
-    includePaths?: string[];
-    maxDepth: number;
+    exclude_paths?: string[];
+    include_paths?: string[];
+    max_depth: number;
     limit: number;
     strategy: string;
     scrape_options?: RequestTaskOptions;
@@ -34,7 +34,7 @@ export interface RequestTask {
     type?: 'scrape' | 'crawl';
     crawlJobId?: string;
     // Template support fields
-    templateId?: string;
+    template_id?: string;
     templateVariables?: Record<string, any>;
 }
 

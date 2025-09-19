@@ -167,7 +167,7 @@ const searchSchemaForOpenAPI = withOpenApi(
             description: 'Country locale for search results',
             example: 'US'
         }),
-        safeSearch: withOpenApi((searchSchema as any).shape.safeSearch, {
+        safe_search: withOpenApi((searchSchema as any).shape.safe_search, {
             description: 'Safe search filter level for Google. 0: off, 1: medium, 2: high, null: default',
             example: 1,
             enum: [0, 1, 2],
