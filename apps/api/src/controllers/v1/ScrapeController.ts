@@ -1,8 +1,7 @@
 import { Response } from "express";
 import { z } from "zod";
-import { scrapeSchema } from "../../types/ScrapeSchema.js";
+import { scrapeSchema, RequestWithAuth } from "@anycrawl/libs";
 import { QueueManager, CrawlerErrorType, AVAILABLE_ENGINES } from "@anycrawl/scrape";
-import { RequestWithAuth } from "../../types/Types.js";
 import { STATUS, createJob, failedJob, getTemplate } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler } from "../../utils/templateHandler.js";
@@ -14,9 +13,9 @@ export class ScrapeController {
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
-            if (requestData.options?.templateId) {
+            if (requestData.options?.template_id) {
                 const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
-                    requestData.options.templateId,
+                    requestData.options.template_id,
                     "scrape"
                 );
 
@@ -79,8 +78,8 @@ export class ScrapeController {
                     req.creditsUsed += extractJsonCredits;
 
                     // Double credits for HTML extraction
-                    const extractSource = (jobPayload as any)?.options?.extractSource || "markdown";
-                    if (extractSource === "html") {
+                    const extract_source = (jobPayload as any)?.options?.extract_source || "markdown";
+                    if (extract_source === "html") {
                         req.creditsUsed += extractJsonCredits; // Double the credits for HTML extraction
                         log.info(`[scrape] HTML extraction detected, adding ${extractJsonCredits} extra credits (total: ${req.creditsUsed})`);
                     }

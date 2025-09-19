@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { getDB, schemas, eq } from "@anycrawl/db";
-import { RequestWithAuth } from "../types/Types.js";
+import { RequestWithAuth } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs/log";
 export const authMiddleware = async (
     req: RequestWithAuth,

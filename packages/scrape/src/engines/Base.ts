@@ -511,13 +511,13 @@ export abstract class BaseEngine {
             const isHttpError = await checkHttpError(context);
             let data = null;
             try {
-                // check if waitFor is set, and it is browser engine
-                if (context.request.userData.options?.waitFor) {
+                // check if wait_for is set, and it is browser engine
+                if (context.request.userData.options?.wait_for) {
                     if (context.page) {
-                        log.debug(`Waiting for ${context.request.userData.options.waitFor} seconds for ${context.request.url}`);
-                        await sleep(context.request.userData.options.waitFor);
+                        log.debug(`Waiting for ${context.request.userData.options.wait_for} seconds for ${context.request.url}`);
+                        await sleep(context.request.userData.options.wait_for);
                     } else {
-                        log.warning(`'waitFor' option is not supported for non-browser crawlers. URL: ${context.request.url}`);
+                        log.warning(`'wait_for' option is not supported for non-browser crawlers. URL: ${context.request.url}`);
                     }
                 }
 
@@ -525,7 +525,7 @@ export abstract class BaseEngine {
                 data = await this.dataExtractor.extractData(context);
 
                 // Check if this is a template-based request
-                const templateId = context.request.userData.options?.templateId;
+                const templateId = context.request.userData.options?.template_id;
 
                 if (templateId && this.isTemplateClientReady()) {
                     const templateVariables = context.request.userData.templateVariables || {};

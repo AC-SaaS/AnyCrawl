@@ -29,6 +29,17 @@ const searchSchema = z.object({
     scrape_options: scrapeOptionsInputSchema.optional(),
     safeSearch: z.number().min(0).max(2).nullable().optional(), // 0: off, 1: medium, 2: high, null: default (Google only)
 });
-
+export const TemplateSearchSchema = searchSchema.pick({
+    engine: true,
+    query: true,
+    limit: true,
+    offset: true,
+    pages: true,
+    lang: true,
+    country: true,
+    scrape_options: true,
+    safeSearch: true
+});
+export type TemplateSearchSchema = z.infer<typeof TemplateSearchSchema>;
 export type SearchSchema = z.infer<typeof searchSchema>;
 export { searchSchema };

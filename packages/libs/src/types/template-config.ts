@@ -1,47 +1,5 @@
 import { CrawlingContext } from "crawlee";
-
-// Re-export API schema types for template configuration
-// These types are derived from the actual API schemas to ensure consistency
-
-// Base types from API schemas
-export type ScrapeOptions = {
-    url?: string;
-    engine?: "cheerio" | "playwright" | "puppeteer";
-    proxy?: string;
-    formats?: Array<"markdown" | "html" | "json" | "text" | "screenshot" | "screenshot@fullPage">;
-    timeout?: number;
-    retry?: boolean;
-    waitFor?: number;
-    includeTags?: string[];
-    excludeTags?: string[];
-    json_options?: {
-        schema?: any;
-        user_prompt?: string;
-        schema_name?: string;
-        schema_description?: string;
-    };
-    extractSource?: "markdown" | "html";
-};
-
-export type CrawlOptions = {
-    url?: string;
-    maxDepth?: number;
-    limit?: number;
-    strategy?: "all" | "same-domain" | "same-hostname" | "same-origin";
-    excludePaths?: string[];
-    includePaths?: string[];
-    scrape_options?: ScrapeOptions;
-};
-
-export type SearchOptions = {
-    url?: string;
-    engine?: "google" | "bing" | "duckduckgo";
-    pages?: number;
-    lang?: string;
-    country?: string;
-    safeSearch?: number;
-    scrape_options?: ScrapeOptions;
-};
+import type { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema } from "./index.js";
 
 // Template configuration types
 export interface TemplateConfig {
@@ -63,7 +21,7 @@ export interface TemplateConfig {
     templateType: "scrape" | "crawl" | "search";
 
     // Request options configuration - structure depends on templateType
-    reqOptions: ScrapeOptions | CrawlOptions | SearchOptions;
+    reqOptions: TemplateScrapeSchema | TemplateCrawlSchema | TemplateSearchSchema;
 
     // Custom handlers code
     customHandlers?: {

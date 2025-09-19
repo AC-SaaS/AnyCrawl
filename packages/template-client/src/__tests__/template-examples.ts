@@ -21,8 +21,8 @@ export const ianaDomainsTemplate: TemplateConfig = {
         formats: ["markdown", "html", "screenshot", "json"],
         timeout: 30000,
         retry: true,
-        waitFor: 1000,
-        excludeTags: ["h2"],
+        wait_for: 1000,
+        exclude_tags: ["h2"],
         json_options: {
             user_prompt: "summary",
             schema: {

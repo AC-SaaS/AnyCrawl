@@ -93,6 +93,17 @@ export const crawlSchema = baseSchema
 
 export type CrawlSchema = z.infer<typeof crawlSchema>;
 
+export const TemplateCrawlSchema = crawlSchema.transform((data: z.infer<typeof crawlSchema>) => {
+    const { templateId, ...optionsWithoutTemplate } = data.options;
+    return {
+        url: data.url,
+        engine: data.engine,
+        ...optionsWithoutTemplate,
+    };
+});
+
+export type TemplateCrawlSchema = z.infer<typeof TemplateCrawlSchema>;
+
 export const CrawlSchemaInput = z.object({
     uuid: z.string().uuid(),
 });

@@ -4,7 +4,7 @@ export type ExtractSource = 'html' | 'markdown';
 export type Engine = 'playwright' | 'cheerio' | 'puppeteer';
 export type ScrapeFormat = 'markdown' | 'html' | 'text' | 'screenshot' | 'screenshot@fullPage' | 'rawHtml' | 'json';
 
-// Project-aligned JSON schema (apps/api/src/types/BaseSchema.ts: jsonSchemaType)
+// Project-aligned JSON schema (@anycrawl/libs: jsonSchemaType)
 export type JSONSchema = {
     type: 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
     properties?: Record<string, JSONSchema>;

@@ -201,8 +201,8 @@ export class ProgressManager {
                         perPageCost += extractJsonCredits;
 
                         // Check if extracting from HTML (double credits for HTML extraction)
-                        const extractSource = payload?.extract_source || payload?.options?.scrape_options?.extract_source || "markdown";
-                        if (extractSource === "html") {
+                        const extract_source = payload?.extract_source || payload?.options?.scrape_options?.extract_source || "markdown";
+                        if (extract_source === "html") {
                             perPageCost += extractJsonCredits; // Double the credits for HTML extraction
                             log.info(`[${queueNameForFinalize}] [${jobId}] HTML extraction detected, adding ${extractJsonCredits} extra credits (total: ${perPageCost})`);
                         }

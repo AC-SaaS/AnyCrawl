@@ -2,8 +2,7 @@ import { Response } from "express";
 import { z } from "zod";
 import { SearchService } from "@anycrawl/search/SearchService";
 import { log } from "@anycrawl/libs/log";
-import { searchSchema } from "../../types/SearchSchema.js";
-import { RequestWithAuth } from "../../types/Types.js";
+import { searchSchema, RequestWithAuth } from "@anycrawl/libs";
 import { randomUUID } from "crypto";
 import { STATUS, createJob, insertJobResult, completedJob, failedJob, updateJobCounts, JOB_RESULT_STATUS } from "@anycrawl/db";
 import { QueueManager } from "@anycrawl/scrape";
@@ -196,11 +195,11 @@ export class SearchController {
                         validatedData.scrape_options.formats?.includes("json");
 
                     if (hasJsonOptions && Number.isFinite(extractJsonCredits) && extractJsonCredits > 0) {
-                        const extractSource = validatedData.scrape_options.extract_source || "markdown";
-                        const jsonCreditsPerScrape = extractSource === "html" ? extractJsonCredits * 2 : extractJsonCredits;
+                        const extract_source = validatedData.scrape_options.extract_source || "markdown";
+                        const jsonCreditsPerScrape = extract_source === "html" ? extractJsonCredits * 2 : extractJsonCredits;
                         scrapeCredits += completedScrapeCount * jsonCreditsPerScrape;
 
-                        if (extractSource === "html") {
+                        if (extract_source === "html") {
                             log.info(`[search] HTML extraction detected, using double credits (${jsonCreditsPerScrape} per scrape, total: ${scrapeCredits})`);
                         }
                     }

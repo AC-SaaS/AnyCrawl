@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { jsonSchemaType } from "../types/BaseSchema.js";
+import { jsonSchemaType } from "@anycrawl/libs";
 
 describe('jsonSchemaType validation', () => {
     it('should validate a simple object schema', () => {

@@ -34,9 +34,9 @@ async function createTemplateScript(): Promise<TemplateConfig> {
                 formats: ["markdown", "html", "screenshot@fullPage", "json"],
                 timeout: 30000,
                 retry: true,
-                waitFor: 1000,
-                includeTags: [],
-                excludeTags: ["h2"],
+                wait_for: 1000,
+                include_tags: [],
+                exclude_tags: ["h2"],
                 json_options: {
                     user_prompt: "summary and extract title",
                     schema: {
@@ -45,7 +45,7 @@ async function createTemplateScript(): Promise<TemplateConfig> {
                             title: { type: "string", description: "Article title" },
                             summary: { type: "string", description: "Article summary" }
                         },
-                        required: ["title", "content"]
+                        required: ["title", "summary"]
                     },
                     schema_name: "Web Summary",
                     schema_description: "Structured data for web",

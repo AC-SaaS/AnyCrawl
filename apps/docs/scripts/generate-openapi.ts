@@ -5,9 +5,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 
 // Import real schemas from API workspace packages
-import { searchSchema } from 'api/src/types/SearchSchema.js';
-import { baseSchema, jsonOptionsSchema, ALLOWED_ENGINES, EXTRACT_SOURCES } from 'api/src/types/BaseSchema.js';
-import { crawlSchema } from 'api/src/types/CrawlSchema.js';
+import { searchSchema, baseSchema, jsonOptionsSchema, ALLOWED_ENGINES, EXTRACT_SOURCES, crawlSchema } from '@anycrawl/libs';
 
 // Build request input schema from API baseSchema (avoid transformed schema that lacks .openapi)
 // Cast to any to allow .openapi chaining locally. We only need types for the generated document shape.

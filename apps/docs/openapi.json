@@ -90,9 +90,14 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "template_id": {
+                    "type": "string"
+                  },
                   "url": {
                     "type": "string",
-                    "format": "uri"
+                    "format": "uri",
+                    "description": "Seed URL to start crawling",
+                    "example": "https://anycrawl.dev"
                   },
                   "engine": {
                     "type": "string",
@@ -184,7 +189,9 @@
                     "properties": {
                       "proxy": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "Proxy URL to route the request through",
+                        "example": "http://user:pass@host:port"
                       },
                       "formats": {
                         "type": "array",
@@ -202,30 +209,40 @@
                         },
                         "default": [
                           "markdown"
+                        ],
+                        "description": "Output formats to return",
+                        "example": [
+                          "markdown"
                         ]
                       },
                       "timeout": {
                         "type": "number",
                         "minimum": 1000,
                         "maximum": 600000,
-                        "default": 300000
+                        "default": 60000,
+                        "description": "Request timeout in milliseconds",
+                        "example": 60000
                       },
                       "wait_for": {
                         "type": "number",
                         "minimum": 1,
-                        "maximum": 60000
+                        "maximum": 60000,
+                        "description": "Delay before processing (ms)",
+                        "example": 1000
                       },
                       "include_tags": {
                         "type": "array",
                         "items": {
                           "type": "string"
-                        }
+                        },
+                        "description": "Only include elements with these CSS selectors"
                       },
                       "exclude_tags": {
                         "type": "array",
                         "items": {
                           "type": "string"
-                        }
+                        },
+                        "description": "Exclude elements with these CSS selectors"
                       },
                       "json_options": {
                         "type": "object",
@@ -245,25 +262,34 @@
                         },
                         "additionalProperties": false
                       }
-                    }
+                    },
+                    "description": "Per-page scraping options applied during crawling"
                   },
                   "exclude_paths": {
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "description": "Glob patterns or path prefixes to exclude from crawling",
+                    "example": [
+                      "/blog/*",
+                      "/privacy"
+                    ]
                   },
                   "include_paths": {
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "description": "Glob patterns or path prefixes to include (applied after exclusion rules)"
                   },
                   "max_depth": {
                     "type": "number",
                     "minimum": 1,
                     "maximum": 50,
-                    "default": 10
+                    "default": 10,
+                    "description": "Maximum crawl depth from the seed URL",
+                    "example": 5
                   },
                   "strategy": {
                     "type": "string",
@@ -273,20 +299,25 @@
                       "same-hostname",
                       "same-origin"
                     ],
-                    "default": "same-domain"
+                    "default": "same-domain",
+                    "description": "Crawl scope strategy",
+                    "example": "same-domain"
                   },
                   "limit": {
                     "type": "number",
                     "minimum": 1,
                     "maximum": 50000,
-                    "default": 100
+                    "default": 100,
+                    "description": "Maximum number of pages to crawl",
+                    "example": 100
                   }
                 },
                 "required": [
                   "url",
                   "engine"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Request schema for site crawling"
               }
             }
           }
@@ -1240,7 +1271,9 @@
                 "properties": {
                   "url": {
                     "type": "string",
-                    "format": "uri"
+                    "format": "uri",
+                    "description": "The URL to be scraped",
+                    "example": "https://httpstat.us/200"
                   },
                   "engine": {
                     "type": "string",
@@ -1254,7 +1287,9 @@
                   },
                   "proxy": {
                     "type": "string",
-                    "format": "uri"
+                    "format": "uri",
+                    "description": "Proxy URL to route the request through",
+                    "example": "http://user:pass@host:port"
                   },
                   "formats": {
                     "type": "array",
@@ -1272,34 +1307,46 @@
                     },
                     "default": [
                       "markdown"
+                    ],
+                    "description": "Output formats to return",
+                    "example": [
+                      "markdown"
                     ]
                   },
                   "timeout": {
                     "type": "number",
                     "minimum": 1000,
                     "maximum": 600000,
-                    "default": 300000
+                    "default": 60000,
+                    "description": "Request timeout in milliseconds",
+                    "example": 60000
                   },
                   "retry": {
                     "type": "boolean",
-                    "default": false
+                    "default": false,
+                    "description": "Whether to retry on failure",
+                    "example": false
                   },
                   "wait_for": {
                     "type": "number",
                     "minimum": 1,
-                    "maximum": 60000
+                    "maximum": 60000,
+                    "description": "Delay before processing (ms)",
+                    "example": 1000
                   },
                   "include_tags": {
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "description": "Only include elements with these CSS selectors"
                   },
                   "exclude_tags": {
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "description": "Exclude elements with these CSS selectors"
                   },
                   "json_options": {
                     "type": "object",
@@ -1325,13 +1372,16 @@
                       "html",
                       "markdown"
                     ],
-                    "default": "markdown"
+                    "default": "markdown",
+                    "description": "The source format to use for JSON extraction (html or markdown), default is markdown",
+                    "example": "markdown"
                   }
                 },
                 "required": [
                   "url",
                   "engine"
-                ]
+                ],
+                "description": "Request schema for web scraping"
               }
             }
           }
@@ -1649,39 +1699,61 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "template_id": {
+                    "type": "string"
+                  },
                   "engine": {
                     "type": "string",
                     "enum": [
                       "google"
-                    ]
+                    ],
+                    "description": "The search engine to be used",
+                    "example": "google"
                   },
                   "query": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The search query string",
+                    "example": "OpenAI ChatGPT"
                   },
                   "limit": {
                     "type": "number",
                     "minimum": 1,
                     "maximum": 100,
-                    "default": 10
+                    "default": 10,
+                    "description": "Maximum number of results per page. If scrape_options is provided, this also acts as a global cap on the number of result URLs to scrape across all pages.",
+                    "example": 10
                   },
                   "offset": {
                     "type": "number",
                     "minimum": 0,
-                    "default": 0
+                    "default": 0,
+                    "description": "Number of results to skip",
+                    "example": 0
                   },
                   "pages": {
                     "type": "number",
                     "minimum": 1,
-                    "maximum": 20
+                    "maximum": 20,
+                    "description": "Number of pages to search",
+                    "example": 1,
+                    "default": 1
                   },
-                  "lang": {},
-                  "country": {},
+                  "lang": {
+                    "description": "Language locale for search results",
+                    "example": "en"
+                  },
+                  "country": {
+                    "description": "Country locale for search results",
+                    "example": "US"
+                  },
                   "scrape_options": {
                     "type": "object",
                     "properties": {
                       "proxy": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "Proxy URL to route the request through",
+                        "example": "http://user:pass@host:port"
                       },
                       "formats": {
                         "type": "array",
@@ -1699,30 +1771,40 @@
                         },
                         "default": [
                           "markdown"
+                        ],
+                        "description": "Output formats to return",
+                        "example": [
+                          "markdown"
                         ]
                       },
                       "timeout": {
                         "type": "number",
                         "minimum": 1000,
                         "maximum": 600000,
-                        "default": 300000
+                        "default": 60000,
+                        "description": "Request timeout in milliseconds",
+                        "example": 60000
                       },
                       "wait_for": {
                         "type": "number",
                         "minimum": 1,
-                        "maximum": 60000
+                        "maximum": 60000,
+                        "description": "Delay before processing (ms)",
+                        "example": 1000
                       },
                       "include_tags": {
                         "type": "array",
                         "items": {
                           "type": "string"
-                        }
+                        },
+                        "description": "Only include elements with these CSS selectors"
                       },
                       "exclude_tags": {
                         "type": "array",
                         "items": {
                           "type": "string"
-                        }
+                        },
+                        "description": "Exclude elements with these CSS selectors"
                       },
                       "json_options": {
                         "type": "object",
@@ -1755,7 +1837,8 @@
                     },
                     "required": [
                       "engine"
-                    ]
+                    ],
+                    "description": "Optional scraping options. If provided, the service scrapes result URLs (capped by limit across all pages) and merges outputs (e.g., html, markdown, metadata) into each item."
                   },
                   "safeSearch": {
                     "type": [
@@ -1763,13 +1846,22 @@
                       "null"
                     ],
                     "minimum": 0,
-                    "maximum": 2
+                    "maximum": 2,
+                    "description": "Safe search filter level for Google. 0: off, 1: medium, 2: high, null: default",
+                    "example": 1,
+                    "enum": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "nullable": true
                   }
                 },
                 "required": [
                   "query",
                   "scrape_options"
-                ]
+                ],
+                "description": "Request schema for web search"
               }
             }
           }

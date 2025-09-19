@@ -1,11 +1,10 @@
 import { Response } from "express";
 import { z } from "zod";
-import { crawlSchema } from "../../types/CrawlSchema.js";
+import { crawlSchema, RequestWithAuth } from "@anycrawl/libs";
 import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager, AVAILABLE_ENGINES } from "@anycrawl/scrape";
-import { RequestWithAuth } from "../../types/Types.js";
 import { randomUUID } from "crypto";
 import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS, getTemplate } from "@anycrawl/db";
-import { CrawlSchemaInput } from "../../types/CrawlSchema.js";
+import { CrawlSchemaInput } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler } from "../../utils/templateHandler.js";
 import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
@@ -19,9 +18,9 @@ export class CrawlController {
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
-            if (requestData.options?.templateId) {
+            if (requestData.options?.template_id) {
                 const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
-                    requestData.options.templateId,
+                    requestData.options.template_id,
                     "crawl"
                 );
 

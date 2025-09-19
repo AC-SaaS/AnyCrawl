@@ -10,10 +10,10 @@ export interface RequestTaskOptions {
     formats?: string[];
     timeout?: number;
     retry?: boolean;
-    waitFor?: number;
-    includeTags?: string[];
-    excludeTags?: string[];
-    extractSource?: "html" | "markdown";
+    wait_for?: number;
+    include_tags?: string[];
+    exclude_tags?: string[];
+    extract_source?: "html" | "markdown";
 }
 
 export interface CrawlOptions {
