@@ -18,7 +18,7 @@ export const source = loader({
     i18n,
     pageTree: {
         // adds a badge to each page item in page tree
-        attachFile,
+        attachFile: attachFile as any,
     },
 });
 
