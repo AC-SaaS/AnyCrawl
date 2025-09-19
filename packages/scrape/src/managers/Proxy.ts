@@ -228,7 +228,7 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
     async newProxyInfo(sessionId?: string | number, options?: TieredProxyOptions): Promise<ProxyInfo | undefined> {
         if (typeof sessionId === 'number') sessionId = `${sessionId}`;
 
-        let url: string | undefined;
+        let url: string | undefined | null;
         let tier: number | undefined;
 
         // First try newUrlFunction
@@ -357,7 +357,7 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
 
         // If both fail, try custom URLs as fallback
         if (this.proxyUrls && this.proxyUrls.length > 0) {
-            return this._handleCustomUrl(sessionId);
+            return this._handleCustomUrl(sessionId) ?? undefined;
         }
 
         // If all methods fail, return null
