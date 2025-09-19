@@ -27,7 +27,7 @@ describe("Scrape API", () => {
     }, 10000);
     it("should return success when 200 ok with cheerio", async () => {
         const response = await request(TEST_URL).post("/v1/scrape").timeout(TIMEOUT).send({
-            url: "https://httpstat.us/200",
+            url: "https://example.com",
             engine: "cheerio",
         });
         expect(response.status).toBe(200);
@@ -38,7 +38,7 @@ describe("Scrape API", () => {
 
     it("should return success when 200 ok with playwright", async () => {
         const response = await request(TEST_URL).post("/v1/scrape").timeout(TIMEOUT).send({
-            url: "https://httpstat.us/200",
+            url: "https://example.com/",
             engine: "playwright",
         });
         expect(response.status).toBe(200);
@@ -48,7 +48,7 @@ describe("Scrape API", () => {
     }, 10000);
     it("should return success when 200 ok with puppeteer", async () => {
         const response = await request(TEST_URL).post("/v1/scrape").timeout(TIMEOUT).send({
-            url: "https://httpstat.us/200",
+            url: "https://example.com/",
             engine: "puppeteer",
         });
         expect(response.status).toBe(200);

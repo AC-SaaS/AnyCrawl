@@ -1,4 +1,4 @@
-export const google = {
+export const GoogleParameters = {
     all_locale: "ZZ",
     custom: {
         supported_domains: {
@@ -587,3 +587,4 @@ export const google = {
         "zu-ZA": "ZA",
     },
 };
+

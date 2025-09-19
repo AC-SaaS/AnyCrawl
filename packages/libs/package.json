@@ -49,6 +49,10 @@
         "./types/ApiTypes": {
             "import": "./dist/types/ApiTypes.js",
             "default": "./dist/types/ApiTypes.js"
+        },
+        "./constants": {
+            "import": "./dist/constants.js",
+            "default": "./dist/constants.js"
         }
     },
     "devDependencies": {

@@ -1,6 +1,6 @@
 // Core types and utilities first
 export * from "./types/crawler.js";
-export * from "./constants.js";
+
 export * from "./Utils.js";
 
 // Base engine and core functionality

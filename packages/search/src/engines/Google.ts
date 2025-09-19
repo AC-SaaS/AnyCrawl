@@ -1,5 +1,5 @@
 import { SearchEngine, SearchOptions, SearchResult, SearchTask } from "./types.js";
-import { google } from "../data/Google.js";
+import { GoogleParameters as google } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs/log";
 import * as cheerio from "cheerio";
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ALLOWED_ENGINES, SCRAPE_FORMATS, EXTRACT_SOURCES } from "@anycrawl/scrape/constants";
+import { ALLOWED_ENGINES, SCRAPE_FORMATS, EXTRACT_SOURCES } from "../constants.js";
 
 export { ALLOWED_ENGINES, SCRAPE_FORMATS, EXTRACT_SOURCES };
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { SearchLocale } from "@anycrawl/search/engines/types";
-import { AVAILABLE_SEARCH_ENGINES } from "@anycrawl/search/constants";
+import { SearchLocale } from "../data/Locale.js";
+import { AVAILABLE_SEARCH_ENGINES } from "../constants.js";
 import { baseSchema } from "./BaseSchema.js";
 
 const scrapeOptionsInputSchema = baseSchema

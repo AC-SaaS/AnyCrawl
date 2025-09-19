@@ -1,4 +1,4 @@
-import * as constants from "../constants.js";
+import * as constants from "@anycrawl/libs/constants";
 
 describe("Constants", () => {
     describe("Job Types", () => {

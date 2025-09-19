@@ -1,4 +1,4 @@
-import { locales } from "../data/Parameters.js";
+import { locales } from "@anycrawl/libs";
 
 export interface SearchResult {
     title: string;

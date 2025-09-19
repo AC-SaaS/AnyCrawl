@@ -1,7 +1,7 @@
 import { AD_DOMAINS, log } from "@anycrawl/libs";
 import { BrowserName } from "crawlee";
 import { ProgressManager } from "../managers/Progress.js";
-import { JOB_TYPE_CRAWL } from "../constants.js";
+import { JOB_TYPE_CRAWL } from "@anycrawl/libs";
 import { CrawlLimitReachedError } from "../errors/index.js";
 
 export enum ConfigurableEngineType {

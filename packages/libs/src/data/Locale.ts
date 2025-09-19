@@ -1,3 +1,4 @@
+
 interface LocaleData {
     code: string;
     name: string;
@@ -149,3 +150,5 @@ export const locales: LocaleData[] = [
     },
     { code: "zh-TW", name: "中文", region: "台灣", englishName: "Chinese", flag: "🇹🇼" },
 ];
+
+export type SearchLocale = (typeof locales)[number]["code"] | "all";
