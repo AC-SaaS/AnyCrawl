@@ -3,6 +3,7 @@ import { baseSchema } from "./BaseSchema.js";
 
 const pickedSchema = baseSchema.pick({
     url: true,
+    template_id: true,
     engine: true,
     proxy: true,
     formats: true,
@@ -19,6 +20,7 @@ export const scrapeSchema = pickedSchema.transform((data) => ({
     url: data.url,
     engine: data.engine,
     options: {
+        templateId: data.template_id,
         proxy: data.proxy,
         formats: data.formats,
         timeout: data.timeout,

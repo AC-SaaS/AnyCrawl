@@ -1,7 +1,7 @@
 import { log } from "@anycrawl/libs"
 import { htmlToMarkdown } from "@anycrawl/libs/html-to-markdown";
 import { HTMLTransformer, ExtractionOptions, TransformOptions } from "./transformers/HTMLTransformer.js";
-import type { CrawlingContext } from "../engines/Base.js";
+import type { CrawlingContext } from "../types/engine.js";
 import { ScreenshotTransformer } from "./transformers/ScreenshotTransformer.js";
 import { convert } from "html-to-text"
 import * as cheerio from "cheerio";
@@ -354,4 +354,4 @@ export class DataExtractor {
         // Always throw a typed ExtractionError so callers can distinguish
         throw ExtractionError.fromError('extractData', error);
     }
-} 
+}

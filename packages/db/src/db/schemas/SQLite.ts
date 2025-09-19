@@ -124,3 +124,72 @@ export const jobResults = p.sqliteTable("job_results", {
     // updated at
     updatedAt: p.integer("updated_at", { mode: "timestamp" }).notNull(),
 });
+
+// Template system tables
+export const templates = p.sqliteTable("templates", {
+    // Primary key with auto-incrementing ID
+    uuid: p
+        .text("uuid")
+        .primaryKey()
+        .$defaultFn(() => randomUUID()),
+    // Template ID (business identifier)
+    templateId: p.text("template_id").notNull().unique(),
+    // Template name
+    name: p.text("name").notNull(),
+    // Template description
+    description: p.text("description"),
+    // Template tags (JSON array)
+    tags: p.text("tags", { mode: "json" }).notNull(),
+    // Template version
+    version: p.text("version").notNull().default("1.0.0"),
+    // Template type - determines which operation this template supports
+    templateType: p.text("template_type").notNull().default("scrape"),
+    // Pricing information (JSON): { perCall: number, currency: "credits" }
+    pricing: p.text("pricing", { mode: "json" }).notNull(),
+    // Request options configuration (JSON) - supports scrape, crawl, and search
+    reqOptions: p.text("req_options", { mode: "json" }).notNull(),
+    // Custom handlers code (JSON)
+    customHandlers: p.text("custom_handlers", { mode: "json" }),
+    // Template metadata (JSON)
+    metadata: p.text("metadata", { mode: "json" }).notNull(),
+    // Template variables (JSON): { [key: string]: { type: string, description: string, required: boolean, defaultValue?: any } }
+    variables: p.text("variables", { mode: "json" }),
+    // User information
+    createdBy: p.text("created_by").notNull(),
+    publishedBy: p.text("published_by"),
+    reviewedBy: p.text("reviewed_by"),
+    // Status fields
+    status: p.text("status").default("draft").notNull(),
+    reviewStatus: p.text("review_status").default("pending").notNull(),
+    reviewNotes: p.text("review_notes"),
+    // Timestamps
+    createdAt: p.integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+    updatedAt: p.integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+    publishedAt: p.integer("published_at", { mode: "timestamp" }),
+    reviewedAt: p.integer("reviewed_at", { mode: "timestamp" }),
+    archivedAt: p.integer("archived_at", { mode: "timestamp" }),
+});
+
+export const templateExecutions = p.sqliteTable("template_executions", {
+    // Primary key with auto-incrementing ID
+    uuid: p
+        .text("uuid")
+        .primaryKey()
+        .$defaultFn(() => randomUUID()),
+    // Foreign key to templates
+    templateUuid: p.text("template_uuid").notNull().references(() => templates.uuid),
+    // API key that made the request
+    apiKey: p.text("api_key_id").references(() => apiKey.uuid),
+    // Job information
+    jobUuid: p.text("job_uuid").references(() => jobs.uuid),
+    // Request processing time in milliseconds
+    processingTimeMs: p.real("processing_time_ms").notNull(),
+    // Number of credits consumed
+    creditsCharged: p.integer("credits_charged").default(0).notNull(),
+    // Success or not
+    success: p.integer("success", { mode: "boolean" }).notNull(),
+    // Error message if failed
+    errorMessage: p.text("error_message"),
+    // Timestamp
+    createdAt: p.integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});

@@ -18,52 +18,17 @@ import { JOB_RESULT_STATUS } from "../../../db/dist/map.js";
 import { ProgressManager } from "../managers/Progress.js";
 import { JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE } from "../constants.js";
 import { CrawlLimitReachedError } from "../errors/index.js";
+import type { CrawlingContext, EngineOptions } from "../types/engine.js";
+
+// Template system imports - directly use @anycrawl/template-client
 
 // Re-export core types for backward compatibility
 export type { MetadataEntry, BaseContent } from "../core/DataExtractor.js";
 export { ExtractionError } from "../core/DataExtractor.js";
 export { ConfigurableEngineType as BaseEngineType } from "../core/EngineConfigurator.js";
 
-// Type definitions
-export type CrawlingContext =
-    | BrowserCrawlingContext<Dictionary>
-    | CheerioCrawlingContext<Dictionary>
-    | PlaywrightCrawlingContext<Dictionary>
-    | PuppeteerCrawlingContext<Dictionary>;
-
-export interface EngineOptions {
-    minConcurrency?: number;
-    maxConcurrency?: number;
-    maxRequestRetries?: number;
-    requestHandlerTimeoutSecs?: number;
-    requestHandler?: (context: CrawlingContext) => Promise<any> | void;
-    failedRequestHandler?: (context: CrawlingContext, error: Error) => Promise<any> | void;
-    maxRequestsPerCrawl?: number;
-    maxRequestTimeout?: number;
-    navigationTimeoutSecs?: number;
-    requestQueueName?: string;
-    requestQueue?: RequestQueue;
-    autoscaledPoolOptions?: {
-        isFinishedFunction: () => Promise<boolean>;
-    };
-    launchContext?: {
-        launchOptions?: {
-            args?: string[];
-            defaultViewport?: {
-                width: number;
-                height: number;
-            };
-        };
-    };
-    preNavigationHooks?: ((context: CrawlingContext) => Promise<any>)[];
-    additionalMimeTypes?: string[];
-    keepAlive?: boolean;
-    proxyConfiguration?: ProxyConfiguration;
-    maxSessionRotations?: number;
-    useSessionPool?: boolean;
-    persistCookiesPerSession?: boolean;
-    headless?: boolean;
-}
+// Re-export types from the dedicated types file
+export type { CrawlingContext, EngineOptions } from "../types/engine.js";
 
 /**
  * Lightweight BaseEngine abstract class
@@ -78,6 +43,9 @@ export abstract class BaseEngine {
     // Composition over inheritance - use specialized classes
     protected dataExtractor = new DataExtractor();
     protected jobManager = new JobManager();
+
+    // Template client for handling template-based requests
+    protected templateClient: any = null;
 
     /**
      * Determine if the status code falls within a specific category
@@ -494,6 +462,31 @@ export abstract class BaseEngine {
 
         // Set the request queue if provided
         this.queue = options.requestQueue;
+
+        // Initialize template client
+        this.initializeTemplateClient().catch(error => {
+            console.log('Template client initialization failed:', error);
+        });
+    }
+
+    /**
+     * Initialize template client
+     */
+    private async initializeTemplateClient(): Promise<void> {
+        try {
+            // Import TemplateClient from @anycrawl/template-client package
+            const { TemplateClient } = await import('@anycrawl/template-client');
+            this.templateClient = new TemplateClient();
+            console.log('Template client initialized successfully');
+        } catch (error) {
+            console.log('Failed to initialize template client:', error);
+        }
+    }
+    /**
+     * Check if template client is ready for use
+     */
+    private isTemplateClientReady(): boolean {
+        return this.templateClient !== null;
     }
 
     /**
@@ -528,27 +521,61 @@ export abstract class BaseEngine {
                     }
                 }
 
+                // Always extract scrape data first
+                data = await this.dataExtractor.extractData(context);
+
+                // Check if this is a template-based request
+                const templateId = context.request.userData.options?.templateId;
+
+                if (templateId && this.isTemplateClientReady()) {
+                    const templateVariables = context.request.userData.templateVariables || {};
+                    // Execute both original handler and template handler
+                    // Create template execution context for @anycrawl/template-client
+                    const templateExecutionContext = {
+                        templateId,
+                        request: {
+                            url: context.request.url,
+                            method: context.request.method || 'GET',
+                            headers: context.request.headers || {},
+                            body: (context.request as any).body
+                        },
+                        variables: templateVariables,
+                        metadata: {
+                            engine: this.constructor.name.toLowerCase().replace('engine', ''),
+                            timestamp: new Date().toISOString()
+                        },
+                        response: context.response,
+                        scrapeResult: data
+                    };
+                    const templateResult = await this.templateClient!.executeTemplate(templateId as string, templateExecutionContext);
+                    if (templateResult.success && templateResult.data.result) {
+                        data = {
+                            ...data,
+                            ...templateResult.data.result
+                        }
+                    }
+                }
+
                 // Run custom handler if provided
                 if (customRequestHandler) {
                     await customRequestHandler(context);
                     return;
                 }
 
-                // Extract data using DataExtractor
-                data = await this.dataExtractor.extractData(context);
                 // insert job result - use parentId if available (for search scrape), otherwise use jobId
                 const resultJobId = context.request.userData.parentId || context.request.userData.jobId;
                 await insertJobResult(resultJobId, context.request.url, data, JOB_RESULT_STATUS.SUCCESS);
+
                 // Handle crawl logic if this is a crawl job
-
                 if (context.request.userData.type === JOB_TYPE_CRAWL) {
-
                     await this.handleCrawlLogic(context, data);
                 }
+
                 // add jobId to data
                 data.jobId = context.request.userData.jobId;
 
             } catch (error) {
+                console.log('Error in requestHandler:', error);
                 // Only handle extraction-specific errors here; let others bubble to failedRequestHandler
                 if (error instanceof ExtractionError) {
                     await this.handleExtractionError(
@@ -638,6 +665,30 @@ export abstract class BaseEngine {
             // Note: Progress checking is now handled by limitFilterHook in preNavigationHooks
             // This eliminates duplicate logic and ensures consistent behavior
 
+            // Check if this is a template-based request and handle template failure
+            const templateId = context.request.userData.templateId;
+            if (templateId && this.templateClient?.isInitialized()) {
+                try {
+                    log.debug(`Handling template failure for ${templateId}: ${error.message}`);
+                    const templateVariables = context.request.userData.templateVariables || {};
+                    const templateFailureResult = await this.templateClient.executeFailureHandler(
+                        context,
+                        templateId,
+                        error,
+                        templateVariables
+                    );
+
+                    // If template failure handler returns data, use it
+                    if (templateFailureResult.data) {
+                        log.info(`Template failure handler processed error for ${templateId}`);
+                        return;
+                    }
+                } catch (templateError) {
+                    log.error(`Template failure handler failed for ${templateId}: ${templateError instanceof Error ? templateError.message : String(templateError)}`);
+                    // Continue with default failure handling
+                }
+            }
+
             // Run custom handler if provided
             if (customFailedRequestHandler) {
                 await customFailedRequestHandler(context, error);
@@ -726,4 +777,4 @@ export abstract class BaseEngine {
      * Abstract method for engine initialization
      */
     abstract init(): Promise<void>;
-} 
+}

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { log, RequestQueueV2 } from "crawlee";
 import { Utils } from "../Utils.js";
-import type { EngineOptions } from "../engines/Base.js";
+import type { EngineOptions } from "../types/engine.js";
 import { EngineFactoryRegistry } from "../engines/EngineFactory.js";
 import type { Engine } from "../engines/EngineFactory.js";
 import { ALLOWED_ENGINES } from "../constants.js";

@@ -7,6 +7,8 @@ import { RequestWithAuth } from "../../types/Types.js";
 import { randomUUID } from "crypto";
 import { STATUS, createJob, insertJobResult, completedJob, failedJob, updateJobCounts, JOB_RESULT_STATUS } from "@anycrawl/db";
 import { QueueManager } from "@anycrawl/scrape";
+import { TemplateHandler } from "../../utils/templateHandler.js";
+import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
 export class SearchController {
     private searchService: SearchService;
 
@@ -32,10 +34,27 @@ export class SearchController {
         let searchJobId: string | null = null;
         let engineName: string | null = null;
         try {
-            // Validate request body against searchSchema
-            const validatedData = searchSchema.parse(req.body);
+            // Merge template options with request body before parsing
+            let requestData = { ...req.body };
+            if (requestData.template_id) {
+                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
+                    requestData.template_id,
+                    "search"
+                );
 
-            // Execute search and wait for results
+                if (!templateResult.success) {
+                    throw new Error(templateResult.error);
+                }
+
+                // Merge template options with request body (request body takes priority)
+                requestData = {
+                    ...requestData,
+                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
+                };
+            }
+
+            // Validate and parse the merged data
+            const validatedData = searchSchema.parse(requestData);
             engineName = validatedData.engine ?? "google";
 
             // Create job for search request (pending)

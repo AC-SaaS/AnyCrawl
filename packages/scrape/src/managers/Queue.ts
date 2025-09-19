@@ -33,6 +33,9 @@ export interface RequestTask {
     // New fields for crawl support
     type?: 'scrape' | 'crawl';
     crawlJobId?: string;
+    // Template support fields
+    templateId?: string;
+    templateVariables?: Record<string, any>;
 }
 
 export type QueueName = "scrape" | "crawl" | string;
@@ -88,7 +91,7 @@ export class QueueManager {
      * @param jobId ID of the job
      * @returns Job instance
      */
-    public getJob(queueName: QueueName, jobId: string): Promise<Job | null> {
+    public getJob(queueName: QueueName, jobId: string): Promise<Job | undefined> {
         const queue = this.getQueue(queueName);
         return queue.getJob(jobId);
     }

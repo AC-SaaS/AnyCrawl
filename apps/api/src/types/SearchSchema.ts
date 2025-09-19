@@ -18,6 +18,7 @@ const scrapeOptionsInputSchema = baseSchema
     .strict();
 
 const searchSchema = z.object({
+    template_id: z.string().optional(),
     engine: z.enum(AVAILABLE_SEARCH_ENGINES).optional(),
     query: z.string(),
     limit: z.number().max(100).min(1).default(10).optional(),

@@ -35,6 +35,10 @@ export const jsonOptionsSchema = z.object({
 // define base schema
 export const baseSchema = z.object({
     /**
+     * Template ID to use for this crawl
+     */
+    template_id: z.string().optional(),
+    /**
      * The URL to be processed
      */
     url: z.string().url(),

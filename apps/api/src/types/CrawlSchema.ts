@@ -5,6 +5,10 @@ import { scrapeSchema } from "./ScrapeSchema.js";
 // Crawl specific options
 const crawlOptionsSchema = z.object({
     /**
+     * Template ID to use for this crawl
+     */
+    template_id: z.string().optional(),
+    /**
      * Paths to exclude from crawling (supports wildcards)
      */
     exclude_paths: z.array(z.string()).optional(),
@@ -76,6 +80,7 @@ export const crawlSchema = baseSchema
             url: data.url,
             engine: data.engine,
             options: {
+                templateId: data.template_id,
                 excludePaths: data.exclude_paths,
                 includePaths: data.include_paths,
                 maxDepth: data.max_depth,

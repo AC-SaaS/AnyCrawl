@@ -134,6 +134,7 @@ export class EngineConfigurator {
 
         // Merge with existing preNavigationHooks
         const existingHooks = options.preNavigationHooks || [];
+
         options.preNavigationHooks = [limitFilterHook, ...existingHooks];
 
         log.debug(`[EngineConfigurator] Pre-navigation hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, limitFilterHook=${options.preNavigationHooks.includes(limitFilterHook)}, existingHooks=${existingHooks.length}`);
@@ -331,4 +332,4 @@ export class EngineConfigurator {
     private static configureCheerio(options: any): void {
         // Cheerio-specific configurations can be added here
     }
-} 
+}

@@ -1,18 +1,38 @@
 import { Response } from "express";
 import { z } from "zod";
 import { scrapeSchema } from "../../types/ScrapeSchema.js";
-import { QueueManager, CrawlerErrorType } from "@anycrawl/scrape";
+import { QueueManager, CrawlerErrorType, AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { RequestWithAuth } from "../../types/Types.js";
-import { STATUS, createJob, failedJob } from "@anycrawl/db";
+import { STATUS, createJob, failedJob, getTemplate } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
+import { TemplateHandler } from "../../utils/templateHandler.js";
+import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
 export class ScrapeController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
         let engineName: string | null = null;
         try {
-            // Validate request body and transform it to the job payload structure
-            const jobPayload = scrapeSchema.parse(req.body);
-            // Keep engine name available for error paths (e.g., timeout) before awaiting
+            // Merge template options with request body before parsing
+            let requestData = { ...req.body };
+            if (requestData.options?.templateId) {
+                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
+                    requestData.options.templateId,
+                    "scrape"
+                );
+
+                if (!templateResult.success) {
+                    throw new Error(templateResult.error);
+                }
+
+                // Merge template options with request body (request body takes priority)
+                requestData = {
+                    ...requestData,
+                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
+                };
+            }
+
+            // Validate and parse the merged data
+            const jobPayload = scrapeSchema.parse(requestData);
             engineName = jobPayload.engine;
 
             jobId = await QueueManager.getInstance().addJob(`scrape-${engineName}`, jobPayload);

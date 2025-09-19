@@ -1,6 +1,5 @@
 import { RequestQueueV2, LaunchContext, Dictionary, log } from "crawlee";
-import type { EngineOptions } from "./Base.js";
-import proxyConfiguration from "../managers/Proxy.js";
+import type { EngineOptions } from "../types/engine.js";
 
 // Use type-only reference to avoid runtime import of Base and engines
 export type Engine = import("./Base.js").BaseEngine;
@@ -14,7 +13,6 @@ export interface IEngineFactory {
 const defaultOptions: EngineOptions = {
     requestHandlerTimeoutSecs: 60,
     keepAlive: process.env.ANYCRAWL_KEEP_ALIVE === "false" ? false : true,
-    proxyConfiguration: proxyConfiguration,
     useSessionPool: true,
     persistCookiesPerSession: false
 };
@@ -57,44 +55,70 @@ const defaultHttpOptions: Record<string, any> = {
     ignoreSslErrors: process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true" ? true : false,
 };
 
-// Concrete factory implementations
-export class CheerioEngineFactory implements IEngineFactory {
+// Shared proxy configuration loader to avoid code duplication
+let cachedProxyConfiguration: any = null;
+async function getProxyConfiguration() {
+    if (!cachedProxyConfiguration) {
+        const proxyMod = await import("../managers/Proxy.js");
+        cachedProxyConfiguration = proxyMod.default;
+    }
+    return cachedProxyConfiguration;
+}
+
+// Base factory class to reduce code duplication
+abstract class BaseEngineFactory implements IEngineFactory {
+    protected abstract engineModule: string;
+    protected abstract engineClass: string;
+
     async createEngine(queue: RequestQueueV2, options?: EngineOptions): Promise<Engine> {
-        const mod = await import("./Cheerio.js");
-        const { CheerioEngine } = mod as any;
-        return new CheerioEngine({
+        const mod = await import(this.engineModule);
+        const EngineClass = mod[this.engineClass];
+        const proxyConfiguration = await getProxyConfiguration();
+
+        return new EngineClass({
             ...defaultOptions,
+            proxyConfiguration,
             requestQueue: queue,
+            ...this.getEngineSpecificOptions(),
+            ...options,
+        });
+    }
+
+    protected abstract getEngineSpecificOptions(): Record<string, any>;
+}
+
+// Concrete factory implementations
+export class CheerioEngineFactory extends BaseEngineFactory {
+    protected engineModule = "./Cheerio.js";
+    protected engineClass = "CheerioEngine";
+
+    protected getEngineSpecificOptions(): Record<string, any> {
+        return {
             additionalMimeTypes: ["text/html", "text/plain", "application/xhtml+xml"],
             ...defaultHttpOptions,
-            ...options,
-        });
+        };
     }
 }
 
-export class PlaywrightEngineFactory implements IEngineFactory {
-    async createEngine(queue: RequestQueueV2, options?: EngineOptions): Promise<Engine> {
-        const mod = await import("./Playwright.js");
-        const { PlaywrightEngine } = mod as any;
-        return new PlaywrightEngine({
-            ...defaultOptions,
-            requestQueue: queue,
+export class PlaywrightEngineFactory extends BaseEngineFactory {
+    protected engineModule = "./Playwright.js";
+    protected engineClass = "PlaywrightEngine";
+
+    protected getEngineSpecificOptions(): Record<string, any> {
+        return {
             launchContext: defaultLaunchContext,
-            ...options,
-        });
+        };
     }
 }
 
-export class PuppeteerEngineFactory implements IEngineFactory {
-    async createEngine(queue: RequestQueueV2, options?: EngineOptions): Promise<Engine> {
-        const mod = await import("./Puppeteer.js");
-        const { PuppeteerEngine } = mod as any;
-        return new PuppeteerEngine({
-            ...defaultOptions,
-            requestQueue: queue,
+export class PuppeteerEngineFactory extends BaseEngineFactory {
+    protected engineModule = "./Puppeteer.js";
+    protected engineClass = "PuppeteerEngine";
+
+    protected getEngineSpecificOptions(): Record<string, any> {
+        return {
             launchContext: defaultLaunchContext,
-            ...options,
-        });
+        };
     }
 }
 
@@ -128,4 +152,4 @@ export class EngineFactoryRegistry {
     static getRegisteredEngineTypes(): string[] {
         return Array.from(this.factories.keys());
     }
-} 
+}

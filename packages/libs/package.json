@@ -25,6 +25,10 @@
         "./log": {
             "import": "./dist/log.js",
             "default": "./dist/log.js"
+        },
+        "./types/template-config": {
+            "import": "./dist/types/template-config.js",
+            "default": "./dist/types/template-config.js"
         }
     },
     "devDependencies": {

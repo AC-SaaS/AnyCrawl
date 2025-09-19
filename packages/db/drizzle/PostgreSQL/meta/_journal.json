@@ -15,6 +15,13 @@
       "when": 1754816129877,
       "tag": "0001_flawless_may_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1758305778311,
+      "tag": "0002_violet_kree",
+      "breakpoints": true
     }
   ]
 }

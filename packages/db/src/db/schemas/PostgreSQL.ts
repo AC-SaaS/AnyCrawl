@@ -124,3 +124,72 @@ export const jobResults = p.pgTable("job_results", {
     // updated at
     updatedAt: p.timestamp("updated_at").notNull(),
 });
+
+// Template system tables
+export const templates = p.pgTable("templates", {
+    // Primary key with auto-incrementing ID
+    uuid: p
+        .uuid()
+        .primaryKey()
+        .$defaultFn(() => randomUUID()),
+    // Template ID (business identifier)
+    templateId: p.text("template_id").notNull().unique(),
+    // Template name
+    name: p.text("name").notNull(),
+    // Template description
+    description: p.text("description"),
+    // Template tags (JSON array)
+    tags: p.jsonb("tags").notNull(),
+    // Template version
+    version: p.text("version").notNull().default("1.0.0"),
+    // Template type - determines which operation this template supports
+    templateType: p.text("template_type").notNull().default("scrape"),
+    // Pricing information (JSON): { perCall: number, currency: "credits" }
+    pricing: p.jsonb("pricing").notNull(),
+    // Request options configuration (JSON) - supports scrape, crawl, and search
+    reqOptions: p.jsonb("req_options").notNull(),
+    // Custom handlers code (JSON)
+    customHandlers: p.jsonb("custom_handlers"),
+    // Template metadata (JSON)
+    metadata: p.jsonb("metadata").notNull(),
+    // Template variables (JSON): { [key: string]: { type: string, description: string, required: boolean, defaultValue?: any } }
+    variables: p.jsonb("variables"),
+    // User information
+    createdBy: p.text("created_by").notNull(),
+    publishedBy: p.text("published_by"),
+    reviewedBy: p.text("reviewed_by"),
+    // Status fields
+    status: p.text("status").default("draft").notNull(),
+    reviewStatus: p.text("review_status").default("pending").notNull(),
+    reviewNotes: p.text("review_notes"),
+    // Timestamps
+    createdAt: p.timestamp("created_at").notNull(),
+    updatedAt: p.timestamp("updated_at").notNull(),
+    publishedAt: p.timestamp("published_at"),
+    reviewedAt: p.timestamp("reviewed_at"),
+    archivedAt: p.timestamp("archived_at"),
+});
+
+export const templateExecutions = p.pgTable("template_executions", {
+    // Primary key with auto-incrementing ID
+    uuid: p
+        .uuid()
+        .primaryKey()
+        .$defaultFn(() => randomUUID()),
+    // Foreign key to templates
+    templateUuid: p.uuid("template_uuid").notNull().references(() => templates.uuid),
+    // API key that made the request
+    apiKey: p.uuid("api_key_id").references(() => apiKey.uuid),
+    // Job information
+    jobUuid: p.uuid("job_uuid").references(() => jobs.uuid),
+    // Request processing time in milliseconds
+    processingTimeMs: p.real("processing_time_ms").notNull(),
+    // Number of credits consumed
+    creditsCharged: p.integer("credits_charged").default(0).notNull(),
+    // Success or not
+    success: p.boolean("success").notNull(),
+    // Error message if failed
+    errorMessage: p.text("error_message"),
+    // Timestamp
+    createdAt: p.timestamp("created_at").notNull(),
+});

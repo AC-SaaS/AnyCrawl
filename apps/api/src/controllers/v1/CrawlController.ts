@@ -1,12 +1,14 @@
 import { Response } from "express";
 import { z } from "zod";
 import { crawlSchema } from "../../types/CrawlSchema.js";
-import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager } from "@anycrawl/scrape";
+import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager, AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { RequestWithAuth } from "../../types/Types.js";
 import { randomUUID } from "crypto";
-import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS } from "@anycrawl/db";
+import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS, getTemplate } from "@anycrawl/db";
 import { CrawlSchemaInput } from "../../types/CrawlSchema.js";
 import { log } from "@anycrawl/libs";
+import { TemplateHandler } from "../../utils/templateHandler.js";
+import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
 
 export class CrawlController {
     /**
@@ -15,8 +17,27 @@ export class CrawlController {
     public start = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
         try {
-            // Validate request body
-            const jobPayload = crawlSchema.parse(req.body);
+            // Merge template options with request body before parsing
+            let requestData = { ...req.body };
+            if (requestData.options?.templateId) {
+                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
+                    requestData.options.templateId,
+                    "crawl"
+                );
+
+                if (!templateResult.success) {
+                    throw new Error(templateResult.error);
+                }
+
+                // Merge template options with request body (request body takes priority)
+                requestData = {
+                    ...requestData,
+                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
+                };
+            }
+
+            // Validate and parse the merged data
+            const jobPayload = crawlSchema.parse(requestData);
 
             // Check if user has enough credits for the requested limit
             if (req.auth && process.env.ANYCRAWL_API_AUTH_ENABLED === "true" && process.env.ANYCRAWL_API_CREDITS_ENABLED === "true") {

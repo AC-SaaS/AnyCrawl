@@ -28,7 +28,8 @@
         "db:generate": "turbo run db:generate --filter=@anycrawl/db",
         "db:migrate": "turbo run db:migrate --filter=@anycrawl/db",
         "check:deps": "dotenv-run -- knip",
-        "check:phantom-deps": "dotenv-run -- knip --include=unlisted"
+        "check:phantom-deps": "dotenv-run -- knip --include=unlisted",
+        "create:test:template": "cd packages/template-client && pnpm create:test:template"
     },
     "devDependencies": {
         "@anycrawl/js-sdk": "^0.0.1",
