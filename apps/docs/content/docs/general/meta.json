@@ -6,6 +6,7 @@
     "pages": [
         "---Get Started---",
         "index",
+        "mcp",
         "---Scrape & Crawl---",
         "crawl",
         "scrape",
