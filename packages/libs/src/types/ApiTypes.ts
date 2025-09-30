@@ -3,6 +3,7 @@ import { Request } from "express";
 export interface RequestWithAuth extends Request {
     auth?: {
         uuid: string;
+        user?: string;
         key: string;
         name: string;
         isActive: boolean;

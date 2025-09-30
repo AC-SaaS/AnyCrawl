@@ -1,8 +1,9 @@
-import { getTemplate } from "@anycrawl/db";
+import { getTemplate, getDB, schemas, eq } from "@anycrawl/db";
 import { AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { TemplateClient } from "@anycrawl/template-client";
 import { mergeOptionsWithTemplate } from "./optionMerger.js";
 import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema } from "@anycrawl/libs";
+import { RequestWithAuth } from "@anycrawl/libs";
 
 /**
  * Template processing result
@@ -21,6 +22,36 @@ export class TemplateHandler {
     private static templateClient: TemplateClient | null = null;
 
     /**
+     * Check if user has permission to use template
+     * @param template - The template configuration
+     * @param currentUserId - Current user ID from API key
+     * @returns true if user has permission, false otherwise
+     */
+    private static hasTemplateAccess(template: any, currentUserId?: string): boolean {
+        // If current request API key has no associated user, any template can be used
+        if (!currentUserId) {
+            return true;
+        }
+
+        const templateCreatedBy = template.createdBy;
+
+        // If template creator equals current user, access is allowed
+        if (templateCreatedBy === currentUserId) {
+            return true;
+        }
+
+        const templateStatus = template.status;
+        const templateReviewStatus = template.reviewStatus;
+        // If template creator doesn't match current user, but status is published and review status is approved, access is allowed
+        if (templateStatus === 'published' || templateReviewStatus === 'approved') {
+            return true;
+        }
+
+        // If template creator doesn't match current user, and status is not published or review status is not approved, access is denied
+        return false;
+    }
+
+    /**
      * Get or create TemplateClient instance (singleton)
      */
     private static getTemplateClient(): TemplateClient {
@@ -35,6 +66,7 @@ export class TemplateHandler {
      * @param url - The URL to validate against domain restrictions
      * @param requestOptions - Options from the request
      * @param templateType - Expected template type (scrape, crawl, search)
+     * @param currentUserId - Current user ID from API key
      * @param options - Processing options
      * @returns TemplateProcessingResult
      */
@@ -43,6 +75,7 @@ export class TemplateHandler {
         url: string,
         requestOptions: any,
         templateType: "scrape" | "crawl" | "search",
+        currentUserId?: string,
         options: {
             validateDomain?: boolean;
             mergeOptions?: boolean;
@@ -62,6 +95,14 @@ export class TemplateHandler {
                 return {
                     success: false,
                     error: `Template not found: ${templateId}`
+                };
+            }
+
+            // Check template access permission
+            if (!this.hasTemplateAccess(template, currentUserId)) {
+                return {
+                    success: false,
+                    error: `Access denied: You don't have permission to use this template`
                 };
             }
 
@@ -145,14 +186,16 @@ export class TemplateHandler {
      * @param templateId - The template ID
      * @param url - The URL to validate
      * @param requestOptions - Request options
+     * @param currentUserId - Current user ID from API key
      * @returns TemplateProcessingResult
      */
     public static async processScrapeTemplate(
         templateId: string,
         url: string,
-        requestOptions: any
+        requestOptions: any,
+        currentUserId?: string
     ): Promise<TemplateProcessingResult> {
-        return this.processTemplate(templateId, url, requestOptions, "scrape", {
+        return this.processTemplate(templateId, url, requestOptions, "scrape", currentUserId, {
             validateDomain: true,
             mergeOptions: true,
             validateEngine: true
@@ -163,11 +206,13 @@ export class TemplateHandler {
      * Get template options for merging before schema parse
      * @param templateId - The template ID
      * @param templateType - The template type
+     * @param currentUserId - Current user ID from API key
      * @returns Template options for merging
      */
     public static async getTemplateOptionsForMerge(
         templateId: string,
-        templateType: "scrape" | "crawl" | "search"
+        templateType: "scrape" | "crawl" | "search",
+        currentUserId?: string
     ): Promise<{ success: boolean; templateOptions?: TemplateScrapeSchema | TemplateCrawlSchema | TemplateSearchSchema; error?: string }> {
         try {
             const templateClient = this.getTemplateClient();
@@ -177,6 +222,14 @@ export class TemplateHandler {
                 return {
                     success: false,
                     error: `Template not found: ${templateId}`
+                };
+            }
+
+            // Check template access permission
+            if (!this.hasTemplateAccess(template, currentUserId)) {
+                return {
+                    success: false,
+                    error: `Access denied: You don't have permission to use this template`
                 };
             }
 
@@ -213,14 +266,16 @@ export class TemplateHandler {
      * @param templateId - The template ID
      * @param url - The URL to validate
      * @param crawlOptions - Crawl options to merge
+     * @param currentUserId - Current user ID from API key
      * @returns TemplateProcessingResult
      */
     public static async processCrawlTemplate(
         templateId: string,
         url: string,
-        crawlOptions: any
+        crawlOptions: any,
+        currentUserId?: string
     ): Promise<TemplateProcessingResult> {
-        return this.processTemplate(templateId, url, crawlOptions, "crawl", {
+        return this.processTemplate(templateId, url, crawlOptions, "crawl", currentUserId, {
             validateDomain: true,
             mergeOptions: true,
             validateEngine: true
@@ -232,6 +287,7 @@ export class TemplateHandler {
      * @param templateId - The template ID
      * @param url - The URL to validate (optional for search)
      * @param searchOptions - Search options to merge
+     * @param currentUserId - Current user ID from API key
      * @param options - Additional options
      * @returns TemplateProcessingResult
      */
@@ -239,12 +295,13 @@ export class TemplateHandler {
         templateId: string,
         url: string | null,
         searchOptions: any,
+        currentUserId?: string,
         options: {
             validateDomain?: boolean;
             validateEngine?: boolean;
         } = {}
     ): Promise<TemplateProcessingResult> {
-        return this.processTemplate(templateId, url || '', searchOptions, "search", {
+        return this.processTemplate(templateId, url || '', searchOptions, "search", currentUserId, {
             validateDomain: options.validateDomain ?? false, // Search doesn't need domain validation
             mergeOptions: true,
             validateEngine: options.validateEngine ?? true

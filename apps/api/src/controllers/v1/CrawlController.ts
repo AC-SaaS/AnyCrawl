@@ -19,9 +19,13 @@ export class CrawlController {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
             if (requestData.options?.template_id) {
+                // Get current user ID from API key
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+
                 const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
                     requestData.options.template_id,
-                    "crawl"
+                    "crawl",
+                    currentUserId
                 );
 
                 if (!templateResult.success) {

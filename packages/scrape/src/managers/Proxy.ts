@@ -172,11 +172,11 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
     constructor(options: ProxyConfigurationOptions = {}) {
         const parentOptions = { ...options };
 
-        // 如果同时存在多个配置选项，临时移除它们以绕过父类验证
+        // If multiple configuration options exist simultaneously, temporarily remove them to bypass parent class validation
         const hasMultipleOptions = [options.proxyUrls, options.newUrlFunction, options.tieredProxyUrls].filter(x => x).length > 1;
 
         if (hasMultipleOptions) {
-            // 只保留 newUrlFunction，移除其他选项来通过父类验证
+            // Only keep newUrlFunction, remove other options to pass parent class validation
             delete parentOptions.proxyUrls;
             delete parentOptions.tieredProxyUrls;
         }

@@ -36,9 +36,13 @@ export class SearchController {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
             if (requestData.template_id) {
+                // Get current user ID from API key
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+
                 const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
                     requestData.template_id,
-                    "search"
+                    "search",
+                    currentUserId
                 );
 
                 if (!templateResult.success) {

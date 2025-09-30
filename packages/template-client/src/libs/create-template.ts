@@ -112,7 +112,7 @@ return handleFailedRequest();
                     defaultValue: 10000,
                 },
             },
-            createdBy: "template-system",
+            createdBy: "system-admin",
             publishedBy: "system-admin",
             reviewedBy: "system-admin",
             status: "published",
