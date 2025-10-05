@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll } from "@jest/globals";
-import { AnyCrawlClient } from "@anycrawl/js-sdk";
 
 const API_KEY = process.env.ANYCRAWL_API_KEY;
 const BASE_URL = process.env.ANYCRAWL_BASE_URL || "https://api.anycrawl.dev";
@@ -20,9 +19,13 @@ describe("AnyCrawlClient (env-gated)", () => {
 });
 
 maybeDescribe("AnyCrawlClient E2E", () => {
-    let client: AnyCrawlClient;
+    let client: any;
+    let AnyCrawlClient: any;
 
-    beforeAll(() => {
+    beforeAll(async () => {
+        // Use dynamic import to avoid "module is already linked" error
+        const sdkModule = await import("@anycrawl/js-sdk");
+        AnyCrawlClient = sdkModule.AnyCrawlClient;
         client = new AnyCrawlClient(API_KEY as string, BASE_URL);
     });
 

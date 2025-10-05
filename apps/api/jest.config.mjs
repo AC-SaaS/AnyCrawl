@@ -1,25 +1,10 @@
+import baseConfig from "../../jest.config.base.mjs";
+
 const config = {
-    preset: "ts-jest/presets/default-esm",
-    testEnvironment: "node",
-    extensionsToTreatAsEsm: [".ts"],
-    moduleNameMapper: {
-        "^(\\.{1,2}/.*)\\.js$": "$1",
-    },
-    transform: {
-        "^.+\\.tsx?$": [
-            "ts-jest",
-            {
-                useESM: true,
-                tsconfig: {
-                    module: "NodeNext",
-                    moduleResolution: "NodeNext",
-                    target: "ES2022",
-                },
-            },
-        ],
-    },
-    testMatch: ["**/__tests__/**/*.test.ts"],
-    verbose: true,
+    ...baseConfig,
+    // Run tests in single worker to avoid module linking conflicts
+    maxWorkers: 1,
+    // No need to skip tests after rewriting with dynamic imports
 };
 
 export default config; 
