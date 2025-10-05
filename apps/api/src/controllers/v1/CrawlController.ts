@@ -1,13 +1,10 @@
 import { Response } from "express";
 import { z } from "zod";
-import { crawlSchema, RequestWithAuth } from "@anycrawl/libs";
+import { crawlSchema, RequestWithAuth, CrawlSchemaInput } from "@anycrawl/libs";
 import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager, AVAILABLE_ENGINES } from "@anycrawl/scrape";
-import { randomUUID } from "crypto";
 import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS, getTemplate } from "@anycrawl/db";
-import { CrawlSchemaInput } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler } from "../../utils/templateHandler.js";
-import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
 
 export class CrawlController {
     /**
@@ -15,28 +12,22 @@ export class CrawlController {
      */
     public start = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
+        let deffaultPrice: number = 0;
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
-            if (requestData.options?.template_id) {
-                // Get current user ID from API key
+
+            if (requestData.template_id) {
                 const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
 
-                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
-                    requestData.options.template_id,
+                requestData = await TemplateHandler.mergeRequestWithTemplate(
+                    requestData,
                     "crawl",
                     currentUserId
                 );
-
-                if (!templateResult.success) {
-                    throw new Error(templateResult.error);
-                }
-
-                // Merge template options with request body (request body takes priority)
-                requestData = {
-                    ...requestData,
-                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
-                };
+                deffaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+                // Remove template field before schema validation (schemas use strict mode)
+                delete requestData.template;
             }
 
             // Validate and parse the merged data
@@ -62,7 +53,7 @@ export class CrawlController {
             // Add job to queue
             jobId = await QueueManager.getInstance().addJob(`crawl-${jobPayload.engine}`, jobPayload);
 
-            req.creditsUsed = 0;
+            req.creditsUsed = deffaultPrice;
 
             await createJob({
                 job_id: jobId,

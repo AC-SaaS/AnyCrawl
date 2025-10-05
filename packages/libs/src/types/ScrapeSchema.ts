@@ -4,6 +4,7 @@ import { baseSchema } from "./BaseSchema.js";
 const pickedSchema = baseSchema.pick({
     url: true,
     template_id: true,
+    variables: true,
     engine: true,
     proxy: true,
     formats: true,
@@ -19,6 +20,7 @@ const pickedSchema = baseSchema.pick({
 export const scrapeSchema = pickedSchema.transform((data: z.infer<typeof pickedSchema>) => ({
     url: data.url,
     engine: data.engine,
+    templateVariables: data.variables,
     options: {
         template_id: data.template_id,
         proxy: data.proxy,

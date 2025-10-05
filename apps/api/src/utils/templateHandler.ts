@@ -1,9 +1,9 @@
-import { getTemplate, getDB, schemas, eq } from "@anycrawl/db";
+import { getTemplate } from "@anycrawl/db";
 import { AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { TemplateClient } from "@anycrawl/template-client";
 import { mergeOptionsWithTemplate } from "./optionMerger.js";
-import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema } from "@anycrawl/libs";
-import { RequestWithAuth } from "@anycrawl/libs";
+import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema, TemplateConfig } from "@anycrawl/libs";
+import { DomainValidator, TemplateExecutionError } from "@anycrawl/template-client";
 
 /**
  * Template processing result
@@ -60,6 +60,7 @@ export class TemplateHandler {
         }
         return this.templateClient;
     }
+
     /**
      * Process template for a given request
      * @param templateId - The template ID
@@ -209,11 +210,11 @@ export class TemplateHandler {
      * @param currentUserId - Current user ID from API key
      * @returns Template options for merging
      */
-    public static async getTemplateOptionsForMerge(
+    public static async getTemplateOptions(
         templateId: string,
         templateType: "scrape" | "crawl" | "search",
         currentUserId?: string
-    ): Promise<{ success: boolean; templateOptions?: TemplateScrapeSchema | TemplateCrawlSchema | TemplateSearchSchema; error?: string }> {
+    ): Promise<{ success: boolean; templateOptions?: TemplateScrapeSchema | TemplateCrawlSchema | TemplateSearchSchema; template?: TemplateConfig; error?: string }> {
         try {
             const templateClient = this.getTemplateClient();
             const template = await templateClient.getTemplate(templateId);
@@ -251,7 +252,8 @@ export class TemplateHandler {
 
             return {
                 success: true,
-                templateOptions
+                templateOptions,
+                template
             };
         } catch (error) {
             return {
@@ -307,4 +309,333 @@ export class TemplateHandler {
             validateEngine: options.validateEngine ?? true
         });
     }
+
+    public static async mergeRequestWithTemplate<T extends Record<string, any>>(
+        requestData: T,
+        templateType: "scrape" | "crawl" | "search",
+        currentUserId?: string
+    ): Promise<T> {
+        const templateId = (requestData as Record<string, any>)?.template_id;
+        if (!templateId) {
+            return { ...requestData };
+        }
+
+        const templateResult = await this.getTemplateOptions(templateId, templateType, currentUserId);
+
+        if (!templateResult.success || !templateResult.templateOptions || !templateResult.template) {
+            throw new Error(templateResult.error ?? "Failed to apply template configuration");
+        }
+
+        let mergedData: Record<string, any> = { ...requestData };
+
+        // Validate variables before applying defaults
+        validateVariables(
+            templateResult.template.variables,
+            mergedData.variables
+        );
+
+        const variablesWithDefaults = applyVariableDefaults(
+            templateResult.template.variables,
+            mergedData.variables
+        );
+
+        if (variablesWithDefaults !== undefined) {
+            mergedData.variables = variablesWithDefaults;
+            mergedData = TemplateVariableMapper.mapVariablesToRequestData(
+                variablesWithDefaults,
+                templateResult.template,
+                mergedData
+            );
+        } else if (mergedData.variables !== undefined) {
+            delete mergedData.variables;
+        }
+
+        const mergedTemplateData = mergeOptionsWithTemplate(
+            templateResult.templateOptions as Record<string, any>,
+            mergedData
+        );
+
+        mergedData = {
+            ...mergedData,
+            ...mergedTemplateData,
+            template: templateResult.template
+        };
+
+        if (mergedData.url && templateResult.template.metadata?.allowedDomains) {
+            const domainRestriction = DomainValidator.parseDomainRestriction(templateResult.template.metadata.allowedDomains);
+            if (domainRestriction) {
+                const validationResult = DomainValidator.validateDomain(mergedData.url, domainRestriction);
+                if (!validationResult.isValid) {
+                    throw new TemplateExecutionError(validationResult.error || "URL not allowed by template domain restrictions");
+                }
+            }
+        }
+
+        // For search templates, validate query against allowedKeywords if present
+        if (templateType === "search" && mergedData.query && templateResult.template.metadata?.allowedKeywords) {
+            const keywordRestriction = DomainValidator.parseDomainRestriction(templateResult.template.metadata.allowedKeywords);
+            if (keywordRestriction) {
+                const validationResult = DomainValidator.validatePattern(
+                    mergedData.query,
+                    keywordRestriction,
+                    'Search query'
+                );
+                if (!validationResult.isValid) {
+                    throw new TemplateExecutionError(validationResult.error || "Search query not allowed by template keyword restrictions");
+                }
+            }
+        }
+
+        // For search templates, apply query transformation if configured
+        if (templateType === "search" && mergedData.query && templateResult.template.customHandlers?.queryTransform?.enabled) {
+            mergedData.query = this.transformQuery(
+                mergedData.query,
+                templateResult.template.customHandlers.queryTransform
+            );
+        }
+
+        // Filter out fields that are not compatible with the template type schema
+        mergedData = this.filterBySchemaType(mergedData, templateType);
+
+        return mergedData as T;
+    }
+
+    /**
+     * Filter request data based on template type schema
+     * Removes fields that are not compatible with the specific template type
+     * @param data - The merged request data
+     * @param templateType - The template type (scrape, crawl, search)
+     * @returns Filtered data without schema-incompatible fields
+     */
+    private static filterBySchemaType(
+        data: Record<string, any>,
+        templateType: "scrape" | "crawl" | "search"
+    ): Record<string, any> {
+        const filtered = { ...data };
+
+        // Remove fields that are not allowed by the specific schema
+        if (templateType === "search") {
+            // searchSchema doesn't allow 'url' field - search uses 'query' instead
+            // Remove it to prevent validation errors
+            delete filtered.url;
+        }
+
+        return filtered;
+    }
+
+    public static reslovePrice(template: TemplateConfig, type: "credits" = 'credits', scenario: "perCall" = 'perCall'): number {
+        if (scenario === "perCall" && template.pricing?.perCall
+            && Number.isFinite(template.pricing.perCall)
+            && template.pricing.perCall > 0
+            && template.pricing.currency === type
+        ) {
+            return template.pricing.perCall;
+        }
+        return 0;
+    }
+
+    /**
+     * Transform query string based on template configuration
+     * @param originalQuery - The original query from user input
+     * @param transform - The query transform configuration
+     * @returns Transformed query string
+     */
+    private static transformQuery(
+        originalQuery: string,
+        transform: NonNullable<TemplateConfig["customHandlers"]>["queryTransform"]
+    ): string {
+        if (!transform || !transform.enabled) {
+            return originalQuery;
+        }
+
+        // Template mode: replace {{query}} or {{keyword}} placeholders
+        if (transform.mode === "template" && transform.template) {
+            return transform.template
+                .replace(/\{\{query\}\}/g, originalQuery)
+                .replace(/\{\{keyword\}\}/g, originalQuery);
+        }
+
+        // Append mode: add prefix and/or suffix
+        if (transform.mode === "append") {
+            const prefix = transform.prefix || "";
+            const suffix = transform.suffix || "";
+            return `${prefix}${originalQuery}${suffix}`;
+        }
+
+        // Fallback: return original query if mode is not recognized
+        return originalQuery;
+    }
+}
+
+export class TemplateVariableMapper {
+    static mapVariablesToRequestData(
+        variables: Record<string, any> | undefined,
+        template: TemplateConfig,
+        requestData: Record<string, any>
+    ): Record<string, any> {
+        if (!variables || !template.variables) {
+            return { ...requestData };
+        }
+
+        const updatedData = { ...requestData };
+
+        for (const [variableName, value] of Object.entries(variables)) {
+            const variableConfig = template.variables?.[variableName];
+            if (!variableConfig?.mapping?.target) {
+                continue;
+            }
+
+            const targetPath = variableConfig.mapping.target;
+            TemplateVariableMapper.setNestedValue(updatedData, targetPath, value);
+        }
+
+        return updatedData;
+    }
+
+    private static setNestedValue(target: Record<string, any>, path: string, value: any): void {
+        if (!path) {
+            return;
+        }
+
+        const segments = path.split(".");
+        let current: Record<string, any> = target;
+
+        while (segments.length > 1) {
+            const segment = segments.shift()!;
+            if (!segment) {
+                continue;
+            }
+            if (current[segment] === undefined || current[segment] === null || typeof current[segment] !== "object") {
+                current[segment] = {};
+            }
+            current = current[segment];
+        }
+
+        const finalSegment = segments.pop();
+        if (!finalSegment) {
+            return;
+        }
+
+        current[finalSegment] = value;
+    }
+}
+
+/**
+ * Validate variables against template variable definitions
+ * @param variableDefinitions - Template variable definitions
+ * @param providedVariables - User-provided variables
+ * @throws Error if validation fails
+ */
+export function validateVariables(
+    variableDefinitions: TemplateConfig["variables"] | undefined,
+    providedVariables: Record<string, any> | undefined
+): void {
+    if (!variableDefinitions) {
+        return;
+    }
+
+    const errors: string[] = [];
+
+    // Check for required variables
+    for (const [variableName, definition] of Object.entries(variableDefinitions)) {
+        if (definition.required) {
+            const value = providedVariables?.[variableName];
+            const hasValue = value !== undefined && value !== null;
+            const hasDefaultValue = Object.prototype.hasOwnProperty.call(definition, "defaultValue");
+
+            if (!hasValue && !hasDefaultValue) {
+                errors.push(`Required variable '${variableName}' is missing`);
+            }
+        }
+    }
+
+    // Validate provided variables
+    if (providedVariables) {
+        for (const [variableName, value] of Object.entries(providedVariables)) {
+            const definition = variableDefinitions[variableName];
+
+            // Check if variable is defined in template
+            if (!definition) {
+                errors.push(`Unknown variable '${variableName}' not defined in template`);
+                continue;
+            }
+
+            // Skip null/undefined values (will be handled by defaults)
+            if (value === undefined || value === null) {
+                continue;
+            }
+
+            // Validate type
+            const actualType = typeof value;
+            switch (definition.type) {
+                case "string":
+                    if (actualType !== "string") {
+                        errors.push(`Variable '${variableName}' must be a string, got ${actualType}`);
+                    }
+                    break;
+
+                case "number":
+                    if (actualType !== "number" || !Number.isFinite(value)) {
+                        errors.push(`Variable '${variableName}' must be a finite number, got ${actualType}`);
+                    }
+                    break;
+
+                case "boolean":
+                    if (actualType !== "boolean") {
+                        errors.push(`Variable '${variableName}' must be a boolean, got ${actualType}`);
+                    }
+                    break;
+
+                case "url":
+                    if (actualType !== "string") {
+                        errors.push(`Variable '${variableName}' must be a string (URL), got ${actualType}`);
+                    } else {
+                        try {
+                            new URL(value);
+                        } catch {
+                            errors.push(`Variable '${variableName}' must be a valid URL`);
+                        }
+                    }
+                    break;
+
+                default:
+                    errors.push(`Variable '${variableName}' has unknown type '${definition.type}'`);
+            }
+        }
+    }
+
+    if (errors.length > 0) {
+        throw new Error(`Template variable validation failed:\n- ${errors.join("\n- ")}`);
+    }
+}
+
+export function applyVariableDefaults(
+    variableDefinitions: TemplateConfig["variables"] | undefined,
+    providedVariables: Record<string, any> | undefined
+): Record<string, any> | undefined {
+    if (!variableDefinitions) {
+        return providedVariables;
+    }
+
+    const mergedVariables = providedVariables ? { ...providedVariables } : {};
+    let defaultApplied = false;
+
+    for (const [variableName, definition] of Object.entries(variableDefinitions)) {
+        if (mergedVariables[variableName] === undefined || mergedVariables[variableName] === null) {
+            if (Object.prototype.hasOwnProperty.call(definition, "defaultValue")) {
+                mergedVariables[variableName] = definition.defaultValue;
+                defaultApplied = true;
+            }
+        }
+    }
+
+    if (providedVariables && Object.keys(providedVariables).length > 0) {
+        return mergedVariables;
+    }
+
+    if (defaultApplied) {
+        return mergedVariables;
+    }
+
+    return providedVariables;
 }

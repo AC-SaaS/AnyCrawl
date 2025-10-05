@@ -95,18 +95,21 @@ return handleFailedRequest();
             variables: {
                 waitTime: {
                     type: "number",
+                    label: "Wait Time",
                     description: "Page load wait time (milliseconds)",
                     required: false,
                     defaultValue: 2000,
                 },
                 includeImages: {
                     type: "boolean",
+                    label: "Include Images",
                     description: "Whether to include article images",
                     required: false,
                     defaultValue: false,
                 },
                 maxContentLength: {
                     type: "number",
+                    label: "Maximum Content Length",
                     description: "Maximum content length limit",
                     required: false,
                     defaultValue: 10000,

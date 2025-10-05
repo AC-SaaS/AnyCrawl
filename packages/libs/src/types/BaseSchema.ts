@@ -38,6 +38,12 @@ export const baseSchema = z.object({
      * Template ID to use for this crawl
      */
     template_id: z.string().optional(),
+
+    /**
+     * Template variables - dynamic parameters defined by the template
+     */
+    variables: z.record(z.any()).optional(),
+
     /**
      * The URL to be processed
      */

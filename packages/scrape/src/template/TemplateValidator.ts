@@ -192,10 +192,10 @@ export class TemplateValidator {
     private static async validateTemplateAvailability(templateId: string): Promise<TemplateValidationResult> {
         // TODO: Implement actual template availability check
         // This could involve checking with the template server, cache, etc.
-        
+
         // For now, just validate that the template ID is not in a blacklist
         const blacklistedTemplates = ['test-invalid', 'deprecated-template'];
-        
+
         if (blacklistedTemplates.includes(templateId)) {
             return {
                 isValid: false,
@@ -229,7 +229,7 @@ export class TemplateValidator {
                     validation.error || 'Template validation failed',
                     validation.code || 'VALIDATION_ERROR'
                 );
-                
+
                 log.error(`Template validation failed: ${error.message} (Code: ${error.code})`);
                 throw error;
             }
@@ -249,7 +249,7 @@ export class TemplateValidator {
         }
 
         // Check if any pattern contains glob characters
-        const hasGlobPatterns = targetSites.some(site => 
+        const hasGlobPatterns = targetSites.some(site =>
             site.includes('*') || site.includes('?') || site.includes('[') || site.includes('{')
         );
 

@@ -115,12 +115,7 @@ export class TemplateClient {
             // 1. Get template
             const template = await this.getTemplate(templateId);
 
-            // 2. Validate template status
-            if (template.reviewStatus !== "approved") {
-                throw new TemplateExecutionError("Template not approved for use");
-            }
-
-            // 3. Validate template code if it has custom handlers
+            // 2. Validate template code if it has custom handlers
             if (template.customHandlers?.requestHandler?.enabled) {
                 await this.validator.validateCode(
                     template.customHandlers.requestHandler.code.source,

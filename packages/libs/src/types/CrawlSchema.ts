@@ -70,6 +70,7 @@ const transformSchema = (data: z.infer<typeof mergedSchema>) => {
         ? scrapeSchema.parse({
             url: data.url,
             engine: data.engine,
+            variables: data.variables,
             // pass through only allowed scrape option fields; defaults are applied by scrapeSchema
             ...(data.scrape_options as Partial<ScrapeOptionsInput>),
         }).options
@@ -78,6 +79,7 @@ const transformSchema = (data: z.infer<typeof mergedSchema>) => {
     return {
         url: data.url,
         engine: data.engine,
+        templateVariables: data.variables,
         options: {
             template_id: data.template_id,
             exclude_paths: data.exclude_paths,

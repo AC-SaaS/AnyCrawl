@@ -2,36 +2,29 @@ import { Response } from "express";
 import { z } from "zod";
 import { scrapeSchema, RequestWithAuth } from "@anycrawl/libs";
 import { QueueManager, CrawlerErrorType, AVAILABLE_ENGINES } from "@anycrawl/scrape";
-import { STATUS, createJob, failedJob, getTemplate } from "@anycrawl/db";
+import { STATUS, createJob, failedJob } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
-import { TemplateHandler } from "../../utils/templateHandler.js";
-import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
+import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
 export class ScrapeController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
         let engineName: string | null = null;
+        let defaultPrice: number = 0;
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
-            if (requestData.options?.template_id) {
-                // Get current user ID from API key
-                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
 
-                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
-                    requestData.options.template_id,
+            if (requestData.template_id) {
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+                requestData = await TemplateHandler.mergeRequestWithTemplate(
+                    requestData,
                     "scrape",
                     currentUserId
                 );
+                defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
 
-                if (!templateResult.success) {
-                    throw new Error(templateResult.error);
-                }
-
-                // Merge template options with request body (request body takes priority)
-                requestData = {
-                    ...requestData,
-                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
-                };
+                // Remove template field before schema validation (schemas use strict mode)
+                delete requestData.template;
             }
 
             // Validate and parse the merged data
@@ -72,7 +65,7 @@ export class ScrapeController {
             }
 
             // Set credits used for this scrape request (1 credit per scrape)
-            req.creditsUsed = 1;
+            req.creditsUsed = defaultPrice || 1;
             // Extra credits when structured extraction is requested via json_options
             try {
                 const extractJsonCredits = Number.parseInt(process.env.ANYCRAWL_EXTRACT_JSON_CREDITS || "0", 10);

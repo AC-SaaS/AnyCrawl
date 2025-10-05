@@ -6,8 +6,7 @@ import { searchSchema, RequestWithAuth } from "@anycrawl/libs";
 import { randomUUID } from "crypto";
 import { STATUS, createJob, insertJobResult, completedJob, failedJob, updateJobCounts, JOB_RESULT_STATUS } from "@anycrawl/db";
 import { QueueManager } from "@anycrawl/scrape";
-import { TemplateHandler } from "../../utils/templateHandler.js";
-import { mergeOptionsWithTemplate } from "../../utils/optionMerger.js";
+import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
 export class SearchController {
     private searchService: SearchService;
 
@@ -32,28 +31,22 @@ export class SearchController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let searchJobId: string | null = null;
         let engineName: string | null = null;
+        let defaultPrice: number = 0;
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
-            if (requestData.template_id) {
-                // Get current user ID from API key
-                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
 
-                const templateResult = await TemplateHandler.getTemplateOptionsForMerge(
-                    requestData.template_id,
+            if (requestData.template_id) {
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+                requestData = await TemplateHandler.mergeRequestWithTemplate(
+                    requestData,
                     "search",
                     currentUserId
                 );
+                defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
 
-                if (!templateResult.success) {
-                    throw new Error(templateResult.error);
-                }
-
-                // Merge template options with request body (request body takes priority)
-                requestData = {
-                    ...requestData,
-                    ...mergeOptionsWithTemplate(templateResult.templateOptions!, requestData)
-                };
+                // Remove template field before schema validation (schemas use strict mode)
+                delete requestData.template;
             }
 
             // Validate and parse the merged data
@@ -116,15 +109,16 @@ export class SearchController {
                             for (const result of toProcess) {
                                 if (!result.url) continue; // Ensure url is a string for RequestTask
                                 const resultUrl = result.url as string;
+                                // Extract engine from scrapeOptions and pass remaining options
+                                const { engine: _engine, ...options } = scrapeOptions;
                                 const jobPayload = {
                                     url: resultUrl,
                                     engine: engineForScrape,
-                                    options: {
-                                        ...scrapeOptions,
-                                    },
+                                    options,
                                     // Pass search job ID as parent ID for result recording
                                     parentId: searchJobId,
                                 };
+                                log.info(`Scrape job payload: ${JSON.stringify(jobPayload)}`);
                                 const createTask = (async () => {
                                     const scrapeJobId = await QueueManager.getInstance().addJob(`scrape-${engineForScrape}`, jobPayload);
                                     // Don't create a separate job in the jobs table
@@ -183,7 +177,16 @@ export class SearchController {
                 for (const r of results as any[]) {
                     if (r && r.url) {
                         const data = urlToScrapeData.get(r.url);
-                        if (data) Object.assign(r, data);
+                        if (data) {
+                            // Add domain prefix to screenshot paths if they exist
+                            if (data.screenshot) {
+                                data.screenshot = `${process.env.ANYCRAWL_DOMAIN}/v1/public/storage/file/${data.screenshot}`;
+                            }
+                            if (data['screenshot@fullPage']) {
+                                data['screenshot@fullPage'] = `${process.env.ANYCRAWL_DOMAIN}/v1/public/storage/file/${data['screenshot@fullPage']}`;
+                            }
+                            Object.assign(r, data);
+                        }
                     }
                 }
             }
@@ -213,6 +216,8 @@ export class SearchController {
             } catch {
                 req.creditsUsed = validatedData.pages ?? 1;
             }
+
+            req.creditsUsed += defaultPrice;
 
             // Mark job status based on page results and scrape tasks
             try {

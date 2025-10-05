@@ -25,6 +25,14 @@ export interface TemplateConfig {
 
     // Custom handlers code
     customHandlers?: {
+        // Query transformation for search templates
+        queryTransform?: {
+            enabled: boolean;
+            mode: "template" | "append";
+            template?: string;  // Template mode: use {{query}} or {{keyword}} placeholder, e.g. "site:abc.com {{query}}"
+            prefix?: string;    // Append mode: prefix to add before query
+            suffix?: string;    // Append mode: suffix to add after query
+        };
         requestHandler?: {
             enabled: boolean;
             code: {
@@ -65,9 +73,11 @@ export interface TemplateConfig {
     variables?: {
         [key: string]: {
             type: "string" | "number" | "boolean" | "url";
+            label?: string;
             description: string;
             required: boolean;
             defaultValue?: any;
+            mapping?: TemplateVariableMapping;
         };
     };
 
@@ -87,6 +97,11 @@ export interface TemplateConfig {
     publishedAt?: Date;
     reviewedAt?: Date;
     archivedAt?: Date;
+}
+
+export interface TemplateVariableMapping {
+    target: string;
+    mode?: "replace";
 }
 
 // Template client configuration

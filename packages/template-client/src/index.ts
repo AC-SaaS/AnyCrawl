@@ -26,3 +26,4 @@ export { TemplateClient } from "./client/index.js";
 export { TemplateCache } from "./cache/index.js";
 export { QuickJSSandbox } from "./sandbox/index.js";
 export { TemplateCodeValidator } from "./validator/index.js";
+export { DomainValidator } from "./validator/domainValidator.js";
