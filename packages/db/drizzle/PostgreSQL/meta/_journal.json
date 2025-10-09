@@ -22,6 +22,13 @@
       "when": 1758305778311,
       "tag": "0002_violet_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1759675874698,
+      "tag": "0003_complex_roughhouse",
+      "breakpoints": true
     }
   ]
 }

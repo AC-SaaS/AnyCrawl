@@ -162,6 +162,8 @@ export const templates = p.pgTable("templates", {
     status: p.text("status").default("draft").notNull(),
     reviewStatus: p.text("review_status").default("pending").notNull(),
     reviewNotes: p.text("review_notes"),
+    // Trusted flag - if true, can use AsyncFunction with page object; if false, must use VM sandbox
+    trusted: p.boolean("trusted").notNull().default(false),
     // Timestamps
     createdAt: p.timestamp("created_at").notNull(),
     updatedAt: p.timestamp("updated_at").notNull(),

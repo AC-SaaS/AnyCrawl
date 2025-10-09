@@ -1,6 +1,6 @@
 import type { SandboxContext } from "@anycrawl/libs";
 import { SandboxError } from "../errors/index.js";
-import { createContext, runInNewContext } from "vm";
+import { createContext, Script } from "vm";
 
 export interface SandboxConfig {
     timeout: number; // Execution timeout in milliseconds
@@ -73,18 +73,28 @@ export class QuickJSSandbox {
                 clearInterval: clearInterval
             };
 
-            // Wrap code in function to allow return statements
+            // Create a contexified sandbox object
+            const vmContext = createContext(sandbox);
+
+            // Wrap code in async function to allow return statements and await
             const wrappedCode = `
-                (function() {
+                (async function() {
                     ${code}
                 })()
             `;
 
-            // Execute the code with timeout
-            const result = runInNewContext(wrappedCode, sandbox, {
+            // Compile and execute the code with timeout
+            const script = new Script(wrappedCode, {
+                filename: 'template-code.js'
+            });
+
+            const resultPromise = script.runInContext(vmContext, {
                 timeout: this.config.timeout,
                 displayErrors: true
             });
+
+            // Await the result if it's a Promise
+            const result = resultPromise instanceof Promise ? await resultPromise : resultPromise;
 
             return {
                 success: true,
@@ -113,17 +123,18 @@ export class QuickJSSandbox {
                 Promise: Promise
             };
 
-            // Try to compile the code without executing
+            // Create a contexified sandbox object
+            const vmContext = createContext(sandbox);
+
+            // Try to compile the code without executing (as async function)
             const wrappedCode = `
-                (function() {
+                (async function() {
                     ${code}
                 })
             `;
 
-            runInNewContext(wrappedCode, sandbox, {
-                timeout: 1000, // Short timeout for validation
-                displayErrors: true
-            });
+            // Compile the script to validate syntax
+            new Script(wrappedCode);
 
             return true;
         } catch (error) {

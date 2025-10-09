@@ -331,7 +331,8 @@ export class TemplateHandler {
         // Validate variables before applying defaults
         validateVariables(
             templateResult.template.variables,
-            mergedData.variables
+            mergedData.variables,
+            mergedData  // Pass the request data to check if mapping targets exist
         );
 
         const variablesWithDefaults = applyVariableDefaults(
@@ -492,6 +493,24 @@ export class TemplateVariableMapper {
         return updatedData;
     }
 
+    static getNestedValue(obj: Record<string, any>, path: string): any {
+        if (!path) {
+            return undefined;
+        }
+
+        const segments = path.split(".");
+        let current: any = obj;
+
+        for (const segment of segments) {
+            if (!segment || current === undefined || current === null) {
+                return undefined;
+            }
+            current = current[segment];
+        }
+
+        return current;
+    }
+
     private static setNestedValue(target: Record<string, any>, path: string, value: any): void {
         if (!path) {
             return;
@@ -524,11 +543,13 @@ export class TemplateVariableMapper {
  * Validate variables against template variable definitions
  * @param variableDefinitions - Template variable definitions
  * @param providedVariables - User-provided variables
+ * @param requestData - Request data to check if mapping targets already exist
  * @throws Error if validation fails
  */
 export function validateVariables(
     variableDefinitions: TemplateConfig["variables"] | undefined,
-    providedVariables: Record<string, any> | undefined
+    providedVariables: Record<string, any> | undefined,
+    requestData?: Record<string, any>
 ): void {
     if (!variableDefinitions) {
         return;
@@ -543,7 +564,14 @@ export function validateVariables(
             const hasValue = value !== undefined && value !== null;
             const hasDefaultValue = Object.prototype.hasOwnProperty.call(definition, "defaultValue");
 
-            if (!hasValue && !hasDefaultValue) {
+            // If variable has mapping and the target field already exists in requestData, it's satisfied
+            let hasMappedTarget = false;
+            if (definition.mapping?.target && requestData) {
+                const targetValue = TemplateVariableMapper.getNestedValue(requestData, definition.mapping.target);
+                hasMappedTarget = targetValue !== undefined && targetValue !== null;
+            }
+
+            if (!hasValue && !hasDefaultValue && !hasMappedTarget) {
                 errors.push(`Required variable '${variableName}' is missing`);
             }
         }

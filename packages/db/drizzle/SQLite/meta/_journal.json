@@ -15,6 +15,13 @@
       "when": 1753061540641,
       "tag": "0001_mixed_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1759675894999,
+      "tag": "0002_lovely_red_skull",
+      "breakpoints": true
     }
   ]
 }

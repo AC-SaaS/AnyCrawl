@@ -135,6 +135,7 @@ export class TemplateClient {
                         template,
                         executionContext: { ...context, scrapeResult: context.scrapeResult || {} },
                         variables: context.variables || {},
+                        page: (context as any).page, // Pass page object for browser-based templates
                     }
                 );
 

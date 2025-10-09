@@ -162,6 +162,8 @@ export const templates = p.sqliteTable("templates", {
     status: p.text("status").default("draft").notNull(),
     reviewStatus: p.text("review_status").default("pending").notNull(),
     reviewNotes: p.text("review_notes"),
+    // Trusted flag - if true, can use AsyncFunction with page object; if false, must use VM sandbox
+    trusted: p.integer("trusted", { mode: "boolean" }).notNull().default(false),
     // Timestamps
     createdAt: p.integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
     updatedAt: p.integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),

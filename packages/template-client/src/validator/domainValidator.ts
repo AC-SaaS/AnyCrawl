@@ -138,8 +138,10 @@ export class DomainValidator {
 
     private static normalizeUrlForComparison(url: URL): string {
         const pathname = url.pathname || '/';
-        const normalizedPath = pathname === '/' ? '/' : pathname.replace(/\/+$/, '/');
-        return `${url.origin.toLowerCase()}${normalizedPath}`;
+        const queryString = url.search || '';
+        const hash = url.hash || '';
+        // Don't add trailing slash, keep the URL as-is for better glob matching
+        return `${url.origin.toLowerCase()}${pathname}${queryString}${hash}`;
     }
 
     private static normalizePatternForExact(pattern: string): string | null {
@@ -206,30 +208,37 @@ export class DomainValidator {
         const hostname = url.hostname.toLowerCase();
         const origin = url.origin.toLowerCase();
         const pathname = url.pathname || '/';
+        const queryString = url.search || '';
+        const hash = url.hash || '';
         const normalizedPathWithSlash = pathname === '/' ? '/' : pathname.replace(/\/+$/, '/');
         const normalizedPathNoSlash = pathname === '/' ? '/' : pathname.replace(/\/+$/, '');
 
         // Generate multiple representations of the URL so various glob pattern formats work correctly
-        // Example: For URL 'https://api.example.com/v1/data', we generate:
+        // Example: For URL 'https://api.example.com/v1/data?q=test', we generate:
         //   - 'api.example.com' → matches pattern 'api.example.com' or '*.example.com'
         //   - 'https://api.example.com' → matches pattern 'https://api.example.com' or 'https://*.example.com'
-        //   - 'api.example.com/v1/data/' → matches pattern 'api.example.com/v1/*'
-        //   - 'https://api.example.com/v1/data/' → matches pattern 'https://api.example.com/v1/*'
+        //   - 'api.example.com/v1/data/?q=test' → matches pattern 'api.example.com/v1/*'
+        //   - 'https://api.example.com/v1/data?q=test' → matches pattern 'https://api.example.com/v1/*'
         // Using Set to automatically deduplicate entries (e.g., when pathname is '/')
         const candidates = new Set<string>([
             normalizedTarget,
             origin,
             `${origin}${normalizedPathWithSlash}`,
             `${origin}${normalizedPathNoSlash}`,
+            `${origin}${normalizedPathWithSlash}${queryString}${hash}`,
+            `${origin}${normalizedPathNoSlash}${queryString}${hash}`,
             hostname,
             `${hostname}${normalizedPathWithSlash}`,
-            `${hostname}${normalizedPathNoSlash}`
+            `${hostname}${normalizedPathNoSlash}`,
+            `${hostname}${normalizedPathWithSlash}${queryString}${hash}`,
+            `${hostname}${normalizedPathNoSlash}${queryString}${hash}`
         ]);
 
         // Include variant without leading slash when combining hostname + path
         if (normalizedPathNoSlash.startsWith('/') && normalizedPathNoSlash !== '/') {
             const pathWithoutSlash = normalizedPathNoSlash.slice(1);
             candidates.add(`${hostname}/${pathWithoutSlash}`);
+            candidates.add(`${hostname}/${pathWithoutSlash}${queryString}${hash}`);
         }
 
         // Check all normalized variants against the glob pattern using standard minimatch behavior

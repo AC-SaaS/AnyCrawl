@@ -545,7 +545,9 @@ export abstract class BaseEngine {
                             timestamp: new Date().toISOString()
                         },
                         response: context.response,
-                        scrapeResult: data
+                        scrapeResult: data,
+                        // Pass page object for browser-based engines (Playwright/Puppeteer)
+                        page: (context as any).page
                     };
                     const templateResult = await this.templateClient!.executeTemplate(templateId as string, templateExecutionContext);
                     if (templateResult.success && templateResult.data.result) {

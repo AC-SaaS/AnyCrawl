@@ -24,8 +24,14 @@ export class TemplateCodeValidator {
      */
     private validateSyntax(code: string): void {
         try {
+            // Wrap code in async function to allow await syntax, same as sandbox execution
+            const wrappedCode = `
+                (async function() {
+                    ${code}
+                })
+            `;
             // Basic syntax validation using Function constructor
-            new Function(code);
+            new Function(wrappedCode);
         } catch (error) {
             throw new TemplateValidationError(`Invalid syntax: ${(error as Error).message}`);
         }
