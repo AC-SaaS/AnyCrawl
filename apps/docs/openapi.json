@@ -270,6 +270,16 @@
                         },
                         "additionalProperties": false,
                         "description": "Advanced: JSON extraction options (optional). Leave empty to omit from request."
+                      },
+                      "extract_source": {
+                        "type": "string",
+                        "enum": [
+                          "html",
+                          "markdown"
+                        ],
+                        "description": "The source format to use for JSON extraction (html or markdown)",
+                        "example": "markdown",
+                        "default": "markdown"
                       }
                     },
                     "description": "Per-page scraping options applied during crawling"
@@ -1385,6 +1395,16 @@
                     },
                     "additionalProperties": false,
                     "description": "Advanced: JSON extraction options (optional). Leave empty to omit from request."
+                  },
+                  "extract_source": {
+                    "type": "string",
+                    "enum": [
+                      "html",
+                      "markdown"
+                    ],
+                    "default": "markdown",
+                    "description": "The source format to use for JSON extraction (html or markdown)",
+                    "example": "markdown"
                   }
                 },
                 "required": [
@@ -1844,6 +1864,16 @@
                         },
                         "additionalProperties": false,
                         "description": "Advanced: JSON extraction options (optional). Leave empty to omit from request."
+                      },
+                      "extract_source": {
+                        "type": "string",
+                        "enum": [
+                          "html",
+                          "markdown"
+                        ],
+                        "description": "The source format to use for JSON extraction (html or markdown)",
+                        "example": "markdown",
+                        "default": "markdown"
                       },
                       "engine": {
                         "type": "string",

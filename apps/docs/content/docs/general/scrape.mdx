@@ -166,17 +166,18 @@ print(result['data']['markdown'])
 
 ## Request Parameters
 
-| Parameter      | Type         | Required | Default        | Description                                                                                                 |
-| -------------- | ------------ | -------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
-| `url`          | string       | Yes      | -              | URL to scrape, must be a valid HTTP/HTTPS address                                                           |
-| `engine`       | enum         | No       | `cheerio`      | Scraping engine type, options: `cheerio`, `playwright`, `puppeteer`                                         |
-| `formats`      | array        | No       | `["markdown"]` | Output formats, options: `markdown`, `html`, `text`, `screenshot`, `screenshot@fullPage`, `rawHtml`, `json` |
-| `timeout`      | number       | No       | `30000`        | Timeout in milliseconds, default: 30000                                                                     |
-| `wait_for`     | number       | No       | -              | Wait for the page to load                                                                                   |
-| `include_tags` | array        | No       | -              | Include tags, like: `h1`                                                                                    |
-| `exclude_tags` | array        | No       | -              | Exclude tags, like: `h1`                                                                                    |
-| `proxy`        | string (URI) | No       | -              | Proxy server address, format: `http://proxy:port` or `https://proxy:port`                                   |
-| `json_options` | json         | No       | -              | JSON options, like: `{"schema": {}, "prompt": true}`                                                        |
+| Parameter        | Type         | Required | Default        | Description                                                                                                 |
+| ---------------- | ------------ | -------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `url`            | string       | Yes      | -              | URL to scrape, must be a valid HTTP/HTTPS address                                                           |
+| `engine`         | enum         | No       | `cheerio`      | Scraping engine type, options: `cheerio`, `playwright`, `puppeteer`                                         |
+| `formats`        | array        | No       | `["markdown"]` | Output formats, options: `markdown`, `html`, `text`, `screenshot`, `screenshot@fullPage`, `rawHtml`, `json` |
+| `timeout`        | number       | No       | `30000`        | Timeout in milliseconds, default: 30000                                                                     |
+| `wait_for`       | number       | No       | -              | Wait for the page to load                                                                                   |
+| `include_tags`   | array        | No       | -              | Include tags, like: `h1`                                                                                    |
+| `exclude_tags`   | array        | No       | -              | Exclude tags, like: `h1`                                                                                    |
+| `proxy`          | string (URI) | No       | -              | Proxy server address, format: `http://proxy:port` or `https://proxy:port`                                   |
+| `json_options`   | json         | No       | -              | JSON options, like: `{"schema": {}, "prompt": true}`                                                        |
+| `extract_source` | enum         | No       | `markdown`     | Source to extract JSON from: `markdown` (default) or `html`                                                 |
 
 ### Engine Types
 

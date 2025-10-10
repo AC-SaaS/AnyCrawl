@@ -20,6 +20,7 @@ const scrapeInputSchema: any = (baseSchema as any).pick({
     include_tags: true,
     exclude_tags: true,
     json_options: true,
+    extract_source: true,
 });
 
 // Ensure the local Zod instance is extended (for response schemas below)
@@ -94,6 +95,11 @@ const scrapeSchemaForOpenAPI = withOpenApi(
         // Override to avoid circularly-referenced JSON schema
         json_options: withOpenApi((jsonOptionsSchemaForDocs as any).optional(), {
             description: 'Advanced: JSON extraction options (optional). Leave empty to omit from request.'
+        }),
+        extract_source: withOpenApi((scrapeInputSchema as any).shape.extract_source, {
+            description: 'The source format to use for JSON extraction (html or markdown)',
+            example: 'markdown',
+            default: 'markdown'
         })
     }),
     { description: 'Request schema for web scraping', example: { url: 'https://example.com', "engine": "cheerio", "formats": ["markdown"] } }
@@ -109,6 +115,7 @@ const scrapeOptionsForOpenAPI: any = (() => {
         include_tags: true,
         exclude_tags: true,
         json_options: true,
+        extract_source: true,
     });
 
     return withOpenApi(
@@ -140,6 +147,11 @@ const scrapeOptionsForOpenAPI: any = (() => {
             json_options: withOpenApi((jsonOptionsSchemaForDocs as any).optional(), {
                 description: 'Advanced: JSON extraction options (optional). Leave empty to omit from request.'
             }),
+            extract_source: z.enum(EXTRACT_SOURCES as any).openapi({
+                description: 'The source format to use for JSON extraction (html or markdown)',
+                example: 'markdown',
+                default: 'markdown'
+            })
         }).partial(),
         { description: 'Per-URL scraping options used during enrichment and crawling' }
     );

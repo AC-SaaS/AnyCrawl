@@ -18,6 +18,8 @@ JSON mode supports three structured extraction modes:
 2. **Schema Only**: Define a JSON schema to strictly constrain the output structure. The LLM fills in the content.
 3. **Prompt + Schema**: Combine both schema and prompt for precise structure and content guidance.
 
+Tip: Set `extract_source` to control whether structured extraction reads from generated `markdown` or original `html`. Default is `markdown`; use `html` for cases where markdown loses important structure.
+
 ---
 
 ### 1. Prompt Only (Flexible Structure)
