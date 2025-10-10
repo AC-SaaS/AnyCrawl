@@ -5,6 +5,7 @@ import { QueueManager, CrawlerErrorType, AVAILABLE_ENGINES } from "@anycrawl/scr
 import { STATUS, createJob, failedJob } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
+import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 export class ScrapeController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
@@ -15,6 +16,11 @@ export class ScrapeController {
             let requestData = { ...req.body };
 
             if (requestData.template_id) {
+                // Validate: when using template_id, only specific fields are allowed
+                if (!validateTemplateOnlyFields(requestData, res, "scrape")) {
+                    return;
+                }
+
                 const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
                 requestData = await TemplateHandler.mergeRequestWithTemplate(
                     requestData,

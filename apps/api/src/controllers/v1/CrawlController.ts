@@ -5,6 +5,7 @@ import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager, AVAILABLE
 import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS, getTemplate } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler } from "../../utils/templateHandler.js";
+import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 
 export class CrawlController {
     /**
@@ -18,6 +19,11 @@ export class CrawlController {
             let requestData = { ...req.body };
 
             if (requestData.template_id) {
+                // Validate: when using template_id, only specific fields are allowed
+                if (!validateTemplateOnlyFields(requestData, res, "crawl")) {
+                    return;
+                }
+
                 const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
 
                 requestData = await TemplateHandler.mergeRequestWithTemplate(

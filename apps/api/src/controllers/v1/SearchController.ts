@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { STATUS, createJob, insertJobResult, completedJob, failedJob, updateJobCounts, JOB_RESULT_STATUS } from "@anycrawl/db";
 import { QueueManager } from "@anycrawl/scrape";
 import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
+import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 export class SearchController {
     private searchService: SearchService;
 
@@ -37,6 +38,11 @@ export class SearchController {
             let requestData = { ...req.body };
 
             if (requestData.template_id) {
+                // Validate: when using template_id, only specific fields are allowed
+                if (!validateTemplateOnlyFields(requestData, res, "search")) {
+                    return;
+                }
+
                 const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
                 requestData = await TemplateHandler.mergeRequestWithTemplate(
                     requestData,
