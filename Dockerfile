@@ -42,8 +42,8 @@ COPY packages/template-client/package.json ./packages/template-client/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
 
-# Install dependencies
-RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
+# Install dependencies (include devDependencies for build toolchain)
+RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts --prod=false
 
 # Copy typescript config files (needed for build)
 COPY packages/typescript-config/ ./packages/typescript-config/
@@ -51,8 +51,10 @@ COPY packages/eslint-config/ ./packages/eslint-config/
 
 # Copy source code and build dependencies first
 COPY . .
-# Build base libraries and scrape first (template-client depends on scrape's build output)
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape
+# Build base libraries, template-client, then scrape
+# - libs/db provide shared types
+# - template-client must be built before scrape because scrape depends on it
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/template-client --filter=@anycrawl/scrape
 # Build remaining packages (search, ai depend on scrape)
 RUN pnpm build --filter=@anycrawl/search --filter=@anycrawl/ai
 # Build API
@@ -72,7 +74,7 @@ COPY --from=build /usr/src/app/package.json ./
 COPY --from=build /usr/src/app/packages ./packages
 
 # Install all dependencies including devDependencies for drizzle-kit
-RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --filter=@anycrawl/db
+RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --filter=@anycrawl/db --prod=false
 
 FROM base AS runtime
 WORKDIR /usr/src/app
