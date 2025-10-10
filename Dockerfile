@@ -38,6 +38,7 @@ COPY packages/scrape/package.json ./packages/scrape/
 COPY packages/search/package.json ./packages/search/
 COPY packages/ai/package.json ./packages/ai/
 COPY packages/db/package.json ./packages/db/
+COPY packages/template-client/package.json ./packages/template-client/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
 
@@ -46,7 +47,7 @@ RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lo
 
 # Copy source code and build dependencies first
 COPY . .
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai --filter=@anycrawl/template-client
 RUN pnpm build --filter=api
 
 # Remove dev dependencies
@@ -98,6 +99,8 @@ COPY --from=build /usr/src/app/packages/db/package.json ./packages/db/
 # Copy built packages
 COPY --from=build /usr/src/app/packages/libs/dist ./packages/libs/dist
 COPY --from=build /usr/src/app/packages/libs/package.json ./packages/libs/
+COPY --from=build /usr/src/app/packages/template-client/dist ./packages/template-client/dist
+COPY --from=build /usr/src/app/packages/template-client/package.json ./packages/template-client/
 COPY --from=build /usr/src/app/packages/scrape/dist ./packages/scrape/dist
 COPY --from=build /usr/src/app/packages/scrape/package.json ./packages/scrape/
 COPY --from=build /usr/src/app/packages/search/dist ./packages/search/dist
