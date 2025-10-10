@@ -1,10 +1,4 @@
-// Re-export HttpResponse type to avoid circular dependency during build
-export interface HttpResponse<T = any> {
-    status: number;
-    headers: Record<string, string>;
-    data: T;
-    rawText?: string;
-}
+export type { HttpResponse } from '@anycrawl/scrape';
 
 function normalizeProxyUrl(input?: string): string | undefined {
     if (!input) return undefined;
