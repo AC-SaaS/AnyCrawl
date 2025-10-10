@@ -10,16 +10,16 @@ export interface RequestTaskOptions {
     formats?: string[];
     timeout?: number;
     retry?: boolean;
-    waitFor?: number;
-    includeTags?: string[];
-    excludeTags?: string[];
-    extractSource?: "html" | "markdown";
+    wait_for?: number;
+    include_tags?: string[];
+    exclude_tags?: string[];
+    extract_source?: "html" | "markdown";
 }
 
 export interface CrawlOptions {
-    excludePaths?: string[];
-    includePaths?: string[];
-    maxDepth: number;
+    exclude_paths?: string[];
+    include_paths?: string[];
+    max_depth: number;
     limit: number;
     strategy: string;
     scrape_options?: RequestTaskOptions;
@@ -33,6 +33,9 @@ export interface RequestTask {
     // New fields for crawl support
     type?: 'scrape' | 'crawl';
     crawlJobId?: string;
+    // Template support fields
+    template_id?: string;
+    templateVariables?: Record<string, any>;
 }
 
 export type QueueName = "scrape" | "crawl" | string;
@@ -88,7 +91,7 @@ export class QueueManager {
      * @param jobId ID of the job
      * @returns Job instance
      */
-    public getJob(queueName: QueueName, jobId: string): Promise<Job | null> {
+    public getJob(queueName: QueueName, jobId: string): Promise<Job | undefined> {
         const queue = this.getQueue(queueName);
         return queue.getJob(jobId);
     }
@@ -178,10 +181,17 @@ export class QueueManager {
      */
     public async isJobDone(queueName: QueueName, jobId: string): Promise<boolean> {
         const state = await this.getJobStatus(queueName, jobId);
-        return (
-            state?.status === "completed" &&
-            (state?.task_status === "completed" || state?.task_status === "failed")
-        );
+        if (!state) {
+            return false;
+        }
+        // Consider the job done when BullMQ marks it completed or failed.
+        // Some engines may mark failures via task_status while keeping BullMQ state as completed;
+        // both cases should resolve the waiter.
+        if (state?.status === "completed" &&
+            (state?.task_status === "completed" || state?.task_status === "failed")) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -199,7 +209,7 @@ export class QueueManager {
      * Wait for a job to be totally completed
      * @param queueName Name of the queue
      * @param jobId ID of the job
-     * @param timeout Timeout in seconds
+     * @param timeout Timeout in milliseconds
      * @returns Job data
      */
     public async waitJobDone(
@@ -209,8 +219,8 @@ export class QueueManager {
     ): Promise<any> {
         return new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => {
-                log.error(`[${queueName}] checkJob: ${jobId} timed out after ${timeout} seconds`);
-                reject(new Error(`Job ${jobId} timed out after ${timeout} seconds`));
+                log.error(`[${queueName}] checkJob: ${jobId} timed out after ${timeout}ms`);
+                reject(new Error(`Job ${jobId} timed out after ${timeout}ms`));
             }, timeout);
 
             const checkJob = async () => {

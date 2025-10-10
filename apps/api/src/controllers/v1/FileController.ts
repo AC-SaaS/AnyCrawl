@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { z } from "zod";
-import { RequestWithAuth } from "../../types/Types.js";
+import { RequestWithAuth } from "@anycrawl/libs";
 import { s3 } from "@anycrawl/libs";
 import { Utils } from "@anycrawl/scrape/Utils";
 import { join } from 'path';

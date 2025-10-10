@@ -2,7 +2,7 @@ import { Response, NextFunction } from "express";
 import { getDB, schemas } from "@anycrawl/db";
 import { log } from "@anycrawl/libs/log";
 import { captureResponseBody, CapturedResponse } from "../utils/responseCapture.js";
-import { RequestWithAuth } from "../types/Types.js";
+import { RequestWithAuth } from "@anycrawl/libs";
 
 export const logMiddleware = async (req: RequestWithAuth, res: Response, next: NextFunction) => {
     // Skip logging for health check endpoint

@@ -28,7 +28,10 @@
         "db:generate": "turbo run db:generate --filter=@anycrawl/db",
         "db:migrate": "turbo run db:migrate --filter=@anycrawl/db",
         "check:deps": "dotenv-run -- knip",
-        "check:phantom-deps": "dotenv-run -- knip --include=unlisted"
+        "check:phantom-deps": "dotenv-run -- knip --include=unlisted",
+        "create:test:template": "cd packages/template-client && pnpm create:test:template",
+        "templates:generate": "tsx templates/generate-sql.ts",
+        "templates:apply": "dotenv-run -- tsx templates/apply-all-sql.ts"
     },
     "devDependencies": {
         "@anycrawl/js-sdk": "^0.0.1",

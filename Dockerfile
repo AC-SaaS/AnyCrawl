@@ -38,15 +38,26 @@ COPY packages/scrape/package.json ./packages/scrape/
 COPY packages/search/package.json ./packages/search/
 COPY packages/ai/package.json ./packages/ai/
 COPY packages/db/package.json ./packages/db/
+COPY packages/template-client/package.json ./packages/template-client/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
 
-# Install dependencies
-RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
+# Install dependencies (include devDependencies for build toolchain)
+RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts --prod=false
+
+# Copy typescript config files (needed for build)
+COPY packages/typescript-config/ ./packages/typescript-config/
+COPY packages/eslint-config/ ./packages/eslint-config/
 
 # Copy source code and build dependencies first
 COPY . .
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai
+# Build base libraries, template-client, then scrape
+# - libs/db provide shared types
+# - template-client must be built before scrape because scrape depends on it
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/template-client --filter=@anycrawl/scrape
+# Build remaining packages (search, ai depend on scrape)
+RUN pnpm build --filter=@anycrawl/search --filter=@anycrawl/ai
+# Build API
 RUN pnpm build --filter=api
 
 # Remove dev dependencies
@@ -63,7 +74,7 @@ COPY --from=build /usr/src/app/package.json ./
 COPY --from=build /usr/src/app/packages ./packages
 
 # Install all dependencies including devDependencies for drizzle-kit
-RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --filter=@anycrawl/db
+RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --filter=@anycrawl/db --prod=false
 
 FROM base AS runtime
 WORKDIR /usr/src/app
@@ -98,6 +109,8 @@ COPY --from=build /usr/src/app/packages/db/package.json ./packages/db/
 # Copy built packages
 COPY --from=build /usr/src/app/packages/libs/dist ./packages/libs/dist
 COPY --from=build /usr/src/app/packages/libs/package.json ./packages/libs/
+COPY --from=build /usr/src/app/packages/template-client/dist ./packages/template-client/dist
+COPY --from=build /usr/src/app/packages/template-client/package.json ./packages/template-client/
 COPY --from=build /usr/src/app/packages/scrape/dist ./packages/scrape/dist
 COPY --from=build /usr/src/app/packages/scrape/package.json ./packages/scrape/
 COPY --from=build /usr/src/app/packages/search/dist ./packages/search/dist

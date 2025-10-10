@@ -1,8 +1,8 @@
 import IORedis from "ioredis";
 import { Utils } from "../Utils.js";
-import { JobManager } from "../core/JobManager.js";
 import { completedJob, failedJob, getDB, schemas, eq, sql } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
+import type { QueueName } from "./Queue.js";
 
 const REDIS_FIELDS = {
     ENQUEUED: "enqueued",
@@ -201,8 +201,8 @@ export class ProgressManager {
                         perPageCost += extractJsonCredits;
 
                         // Check if extracting from HTML (double credits for HTML extraction)
-                        const extractSource = payload?.extract_source || payload?.options?.scrape_options?.extract_source || "markdown";
-                        if (extractSource === "html") {
+                        const extract_source = payload?.extract_source || payload?.options?.scrape_options?.extract_source || "markdown";
+                        if (extract_source === "html") {
                             perPageCost += extractJsonCredits; // Double the credits for HTML extraction
                             log.info(`[${queueNameForFinalize}] [${jobId}] HTML extraction detected, adding ${extractJsonCredits} extra credits (total: ${perPageCost})`);
                         }
@@ -324,8 +324,19 @@ export class ProgressManager {
                 finished_at: fields[REDIS_FIELDS.FINISHED_AT],
                 ...(summary ?? {}),
             };
-            // Mark in BullMQ job data
-            await new JobManager().markCompleted(jobId, queueName as any, finalSummary);
+            // Mark in BullMQ job data - inline the JobManager functionality to avoid circular dependency
+            const { QueueManager } = await import("./Queue.js");
+            const job = await QueueManager.getInstance().getJob(queueName as QueueName, jobId);
+            if (job) {
+                job.updateData({
+                    ...job.data,
+                    status: "completed",
+                    ...finalSummary,
+                });
+
+                // Store data in key-value store
+                await (await Utils.getInstance().getKeyValueStore()).setValue(jobId, finalSummary);
+            }
 
             // Mark in DB: if no pages succeeded (completed = 0), mark as failed
             try {

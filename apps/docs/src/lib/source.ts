@@ -3,7 +3,7 @@ import { loader } from "fumadocs-core/source";
 import { icons } from "lucide-react";
 import { createElement } from "react";
 import { i18n } from "./i18n";
-import { createOpenAPI, attachFile } from 'fumadocs-openapi/server';
+import { createOpenAPI } from 'fumadocs-openapi/server';
 
 export const source = loader({
     baseUrl: "/",
@@ -17,8 +17,7 @@ export const source = loader({
     source: docs.toFumadocsSource(),
     i18n,
     pageTree: {
-        // adds a badge to each page item in page tree
-        attachFile,
+        // pageTree configuration without attachFile to avoid undefined errors
     },
 });
 

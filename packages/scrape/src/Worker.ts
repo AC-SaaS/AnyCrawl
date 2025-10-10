@@ -5,7 +5,7 @@ import { log } from "crawlee";
 import { Utils } from "./Utils.js";
 // Removed unused imports to keep startup lean
 import { ProgressManager } from "./managers/Progress.js";
-import { ALLOWED_ENGINES, JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE } from "./constants.js";
+import { ALLOWED_ENGINES, JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE } from "@anycrawl/libs";
 import { ensureAIConfigLoaded } from "@anycrawl/ai/utils/config.js";
 import { refreshAIConfig, getDefaultLLModelId, getEnabledProviderModels } from "@anycrawl/ai/utils/helper.js";
 
@@ -231,6 +231,100 @@ async function runJob(job: Job) {
                 log.error(`Error in periodic finalization check: ${error}`);
             }
         }, 10000); // Check every 10 seconds
+
+        // Check for expired jobs and clean them up
+        setInterval(async () => {
+            try {
+                log.debug("Starting periodic cleanup check for expired jobs...");
+                const { getDB, schemas, eq, sql } = await import("@anycrawl/db");
+                const progressManager = ProgressManager.getInstance();
+                const db = await getDB();
+
+                // Find all pending jobs that have expired
+                const expiredJobs = await db
+                    .select({
+                        jobId: schemas.jobs.jobId,
+                        jobType: schemas.jobs.jobType,
+                        jobQueueName: schemas.jobs.jobQueueName,
+                        jobExpireAt: schemas.jobs.jobExpireAt,
+                        status: schemas.jobs.status
+                    })
+                    .from(schemas.jobs)
+                    .limit(1000)
+                    .where(
+                        sql`${schemas.jobs.status} = 'pending' AND ${schemas.jobs.jobExpireAt} < NOW()`
+                    );
+
+                if (expiredJobs.length > 0) {
+                    log.info(`Found ${expiredJobs.length} expired pending jobs to clean up`);
+
+                    let cleanedJobs = 0;
+                    for (const job of expiredJobs) {
+                        try {
+                            let finalStatus: string;
+                            let finalMessage: string;
+                            let shouldMarkAsCompleted: boolean;
+
+                            // First, try to use ProgressManager to get final status
+                            try {
+                                const isFinalized = await progressManager.isFinalized(job.jobId);
+
+                                if (isFinalized) {
+                                    // Job is already finalized by ProgressManager
+                                    log.info(`Expired job ${job.jobId} already finalized by ProgressManager, skipping`);
+                                    continue;
+                                }
+
+                                // Use job's own counts for decision
+                                const jobCompleted = job.completed || 0;
+                                const jobFailed = job.failed || 0;
+
+                                const totalCompleted = jobCompleted;
+                                const totalFailed = jobFailed;
+
+                                shouldMarkAsCompleted = totalFailed <= totalCompleted;
+                                finalStatus = shouldMarkAsCompleted ? 'completed' : 'failed';
+                                finalMessage = shouldMarkAsCompleted
+                                    ? `Job completed with timeout (failed: ${totalFailed} <= completed: ${totalCompleted})`
+                                    : `Job failed due to timeout (failed: ${totalFailed} > completed: ${totalCompleted})`;
+                            } catch (pmError) {
+                                // Fallback to simple job record check if ProgressManager fails
+                                const jobCompleted = job.completed || 0;
+                                const jobFailed = job.failed || 0;
+
+                                shouldMarkAsCompleted = jobFailed <= jobCompleted;
+                                finalStatus = shouldMarkAsCompleted ? 'completed' : 'failed';
+                                finalMessage = shouldMarkAsCompleted
+                                    ? `Job completed with timeout (failed: ${jobFailed} <= completed: ${jobCompleted}) - PM failed`
+                                    : `Job failed due to timeout (failed: ${jobFailed} > completed: ${jobCompleted}) - PM failed`;
+                            }
+
+                            // Update job status
+                            await db
+                                .update(schemas.jobs)
+                                .set({
+                                    status: finalStatus,
+                                    errorMessage: finalMessage,
+                                    updatedAt: new Date(),
+                                    isSuccess: shouldMarkAsCompleted,
+                                })
+                                .where(eq(schemas.jobs.jobId, job.jobId));
+
+                            cleanedJobs++;
+                            log.info(`Cleaned up expired job ${job.jobId} (type: ${job.jobType}, expired at: ${job.jobExpireAt}) -> ${finalStatus}`);
+                        } catch (error) {
+                            log.error(`Error cleaning up expired job ${job.jobId}: ${error}`);
+                        }
+                    }
+
+                    log.info(`Expired job cleanup completed: ${cleanedJobs} jobs cleaned up`);
+                } else {
+                    log.debug("No expired jobs found for cleanup");
+                }
+            } catch (error) {
+                log.error(`Error in periodic expired job cleanup: ${error}`);
+            }
+        }, 60000); // Check every 60 seconds
 
         // Handle graceful shutdown
         process.on("SIGINT", async () => {

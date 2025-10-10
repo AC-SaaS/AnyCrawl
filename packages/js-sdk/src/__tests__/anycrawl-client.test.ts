@@ -417,7 +417,7 @@ describe('AnyCrawlClient', () => {
                 lang: 'en',
                 country: 'US',
                 scrape_options: { engine: 'playwright' },
-                safeSearch: 1,
+                safe_search: 1,
             };
 
             await client.search(options);

@@ -1,6 +1,6 @@
 export interface ExtractionOptions {
-    includeTags?: string[];
-    excludeTags?: string[];
+    include_tags?: string[];
+    exclude_tags?: string[];
 }
 
 export interface TransformOptions extends ExtractionOptions {
@@ -103,14 +103,14 @@ export class HTMLTransformer {
      * Works on an already cloned cheerio instance to avoid redundant cloning
      */
     private doExtractCleanHtml($: any, options?: ExtractionOptions): string {
-        // If includeTags is specified, only extract those elements
-        if (options?.includeTags && options.includeTags.length > 0) {
+        // If include_tags is specified, only extract those elements
+        if (options?.include_tags && options.include_tags.length > 0) {
             // Create new document to collect matching elements
             const $newDocument = $.load("<div></div>");
             const $root = $newDocument('div');
 
             // For each include tag selector, find matching elements and add them
-            for (const selector of options.includeTags) {
+            for (const selector of options.include_tags) {
                 const matchingElements = $(selector);
                 matchingElements.each((_: number, element: any) => {
                     // Clone the element and append to root
@@ -126,9 +126,9 @@ export class HTMLTransformer {
             // Remove non-main content elements using the constant
             $(EXCLUDE_NON_MAIN_TAGS.join(', ')).remove();
 
-            // Apply excludeTags if specified
-            if (options?.excludeTags && options.excludeTags.length > 0) {
-                for (const selector of options.excludeTags) {
+            // Apply exclude_tags if specified
+            if (options?.exclude_tags && options.exclude_tags.length > 0) {
+                for (const selector of options.exclude_tags) {
                     $(selector).remove();
                 }
             }

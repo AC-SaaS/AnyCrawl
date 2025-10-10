@@ -1,4 +1,4 @@
-import { locales } from "../data/Parameters.js";
+import { locales } from "@anycrawl/libs";
 
 export interface SearchResult {
     title: string;
@@ -23,7 +23,7 @@ export interface SearchOptions {
     pages?: number;
     lang?: SearchLocale;
     country?: SearchLocale;
-    safeSearch?: number | null; // 0: off, 1: medium, 2: high, null: default (Google only)
+    safe_search?: number | null; // 0: off, 1: medium, 2: high, null: default (Google only)
     [key: string]: any;
 }
 

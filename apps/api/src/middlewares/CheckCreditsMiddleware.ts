@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { RequestWithAuth } from "../types/Types.js";
+import { RequestWithAuth } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs/log";
 import { getDB, schemas, eq } from "@anycrawl/db";
 

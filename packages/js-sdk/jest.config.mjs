@@ -1,26 +1,9 @@
+import baseConfig from "../../jest.config.base.mjs";
+
 const config = {
-    preset: "ts-jest/presets/default-esm",
-    testEnvironment: "node",
-    extensionsToTreatAsEsm: [".ts"],
+    ...baseConfig,
+    // Add setup file
     setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
-    moduleNameMapper: {
-        "^(\\.{1,2}/.*)\\.js$": "$1",
-    },
-    transform: {
-        "^.+\\.tsx?$": [
-            "ts-jest",
-            {
-                useESM: true,
-                tsconfig: {
-                    module: "NodeNext",
-                    moduleResolution: "NodeNext",
-                    target: "ES2022",
-                },
-            },
-        ],
-    },
-    testMatch: ["**/__tests__/**/*.test.ts"],
-    verbose: true,
 };
 
 export default config; 

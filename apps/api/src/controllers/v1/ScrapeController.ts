@@ -1,18 +1,40 @@
 import { Response } from "express";
 import { z } from "zod";
-import { scrapeSchema } from "../../types/ScrapeSchema.js";
-import { QueueManager, CrawlerErrorType } from "@anycrawl/scrape";
-import { RequestWithAuth } from "../../types/Types.js";
+import { scrapeSchema, RequestWithAuth } from "@anycrawl/libs";
+import { QueueManager, CrawlerErrorType, AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { STATUS, createJob, failedJob } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
+import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
+import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 export class ScrapeController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
         let engineName: string | null = null;
+        let defaultPrice: number = 0;
         try {
-            // Validate request body and transform it to the job payload structure
-            const jobPayload = scrapeSchema.parse(req.body);
-            // Keep engine name available for error paths (e.g., timeout) before awaiting
+            // Merge template options with request body before parsing
+            let requestData = { ...req.body };
+
+            if (requestData.template_id) {
+                // Validate: when using template_id, only specific fields are allowed
+                if (!validateTemplateOnlyFields(requestData, res, "scrape")) {
+                    return;
+                }
+
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+                requestData = await TemplateHandler.mergeRequestWithTemplate(
+                    requestData,
+                    "scrape",
+                    currentUserId
+                );
+                defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+
+                // Remove template field before schema validation (schemas use strict mode)
+                delete requestData.template;
+            }
+
+            // Validate and parse the merged data
+            const jobPayload = scrapeSchema.parse(requestData);
             engineName = jobPayload.engine;
 
             jobId = await QueueManager.getInstance().addJob(`scrape-${engineName}`, jobPayload);
@@ -49,7 +71,7 @@ export class ScrapeController {
             }
 
             // Set credits used for this scrape request (1 credit per scrape)
-            req.creditsUsed = 1;
+            req.creditsUsed = defaultPrice || 1;
             // Extra credits when structured extraction is requested via json_options
             try {
                 const extractJsonCredits = Number.parseInt(process.env.ANYCRAWL_EXTRACT_JSON_CREDITS || "0", 10);
@@ -59,8 +81,8 @@ export class ScrapeController {
                     req.creditsUsed += extractJsonCredits;
 
                     // Double credits for HTML extraction
-                    const extractSource = (jobPayload as any)?.options?.extractSource || "markdown";
-                    if (extractSource === "html") {
+                    const extract_source = (jobPayload as any)?.options?.extract_source || "markdown";
+                    if (extract_source === "html") {
                         req.creditsUsed += extractJsonCredits; // Double the credits for HTML extraction
                         log.info(`[scrape] HTML extraction detected, adding ${extractJsonCredits} extra credits (total: ${req.creditsUsed})`);
                     }

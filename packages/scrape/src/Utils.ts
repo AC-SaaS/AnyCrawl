@@ -2,7 +2,7 @@ import { Configuration, KeyValueStore, log, RequestQueueV2 } from "crawlee";
 import { join } from "node:path";
 import IORedis from "ioredis";
 import { Job } from "bullmq";
-import type { EngineOptions } from "./engines/Base.js";
+import type { EngineOptions } from "./types/engine.js";
 
 /**
  * Utility class for storing global instances

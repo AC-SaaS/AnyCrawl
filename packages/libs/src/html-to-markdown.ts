@@ -79,6 +79,48 @@ export function htmlToMarkdown(html: string): string {
         }
     });
 
+    // Handle anchors that wrap a single image to avoid generating bare [![]] blocks
+    turndownService.addRule('linkedImages', {
+        filter: function (node: Node) {
+            const element = node as HTMLElement;
+            if (!element || element.nodeName !== 'A') return false;
+
+            // Filter out whitespace-only text nodes
+            const children = Array.from(element.childNodes).filter(n => !(n.nodeType === 3 && !n.textContent?.trim()));
+            if (children.length !== 1) return false;
+
+            const onlyChild = children[0] as HTMLElement;
+            return !!onlyChild && onlyChild.nodeName === 'IMG';
+        },
+        replacement: function (content: string, node: Node) {
+            const anchor = node as HTMLAnchorElement;
+            const hrefRaw = anchor.getAttribute ? (anchor.getAttribute('href') || '') : '';
+            const href = hrefRaw.trim();
+            const isInvalidHref = !href || href === '#' || href.toLowerCase().startsWith('javascript:');
+
+            const imageMd = content.trim(); // expected: ![alt](src)
+            return isInvalidHref ? imageMd : `[${imageMd}](${href})`;
+        }
+    });
+
+    // Normalize figure/picture wrappers to avoid extra blank lines
+    turndownService.addRule('figureWrapper', {
+        filter: ['figure', 'picture'],
+        replacement: function (content: string) {
+            const inner = content.trim();
+            return inner ? `\n\n${inner}\n\n` : '';
+        }
+    });
+
+    // Preserve figcaption as a separate paragraph below the image/content
+    turndownService.addRule('figcaption', {
+        filter: 'figcaption',
+        replacement: function (content: string) {
+            const text = content.trim();
+            return text ? `\n\n${text}\n\n` : '';
+        }
+    });
+
     // Handle emphasis elements
     turndownService.addRule('emphasis', {
         filter: ['em', 'i', 'strong', 'b'],
@@ -105,8 +147,30 @@ export function htmlToMarkdown(html: string): string {
         }
     });
 
+    // Post-process markdown to remove bare brackets around single images and collapse whitespace
+    function normalizeBracketWrappedImages(input: string): string {
+        let output = input;
+
+        // Collapse whitespace/newlines inside single-bracketed image: [  ![...](...)  ] -> [![...](...)]
+        const collapseInside = (s: string) => s.replace(/\[\s*(!\[[^\]]*\]\([^\)]+\))\s*\]/g, '[$1]');
+
+        // Strip bare brackets when they only wrap an image and are not immediately followed by a link/ref: [![...](...)] -> ![...](...)
+        const stripBare = (s: string) => s.replace(/\[\s*(!\[[^\]]*\]\([^\)]+\))\s*\](?!\s*[\(\[])/g, '$1');
+
+        // Iterate until stable to handle multiple nested brackets
+        let prev: string;
+        do {
+            prev = output;
+            output = collapseInside(output);
+            output = stripBare(output);
+        } while (output !== prev);
+
+        return output;
+    }
+
     // Convert and clean up the result
     let markdown = turndownService.turndown(html);
+    markdown = normalizeBracketWrappedImages(markdown);
 
     // Aggressive post-processing
     markdown = markdown.trim();

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { getDB, schemas, eq, sql } from "@anycrawl/db";
-import { RequestWithAuth } from "../types/Types.js";
+import { RequestWithAuth } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs/log";
 
 // did not need to deduct credits.

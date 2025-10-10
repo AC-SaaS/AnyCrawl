@@ -172,11 +172,11 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
     constructor(options: ProxyConfigurationOptions = {}) {
         const parentOptions = { ...options };
 
-        // 如果同时存在多个配置选项，临时移除它们以绕过父类验证
+        // If multiple configuration options exist simultaneously, temporarily remove them to bypass parent class validation
         const hasMultipleOptions = [options.proxyUrls, options.newUrlFunction, options.tieredProxyUrls].filter(x => x).length > 1;
 
         if (hasMultipleOptions) {
-            // 只保留 newUrlFunction，移除其他选项来通过父类验证
+            // Only keep newUrlFunction, remove other options to pass parent class validation
             delete parentOptions.proxyUrls;
             delete parentOptions.tieredProxyUrls;
         }
@@ -228,7 +228,7 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
     async newProxyInfo(sessionId?: string | number, options?: TieredProxyOptions): Promise<ProxyInfo | undefined> {
         if (typeof sessionId === 'number') sessionId = `${sessionId}`;
 
-        let url: string | undefined;
+        let url: string | undefined | null;
         let tier: number | undefined;
 
         // First try newUrlFunction
@@ -357,7 +357,7 @@ export class ProxyConfiguration extends CrawleeProxyConfiguration {
 
         // If both fail, try custom URLs as fallback
         if (this.proxyUrls && this.proxyUrls.length > 0) {
-            return this._handleCustomUrl(sessionId);
+            return this._handleCustomUrl(sessionId) ?? undefined;
         }
 
         // If all methods fail, return null

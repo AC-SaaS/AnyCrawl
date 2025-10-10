@@ -11,7 +11,8 @@
         "test": "NODE_OPTIONS=--experimental-vm-modules dotenv-run -r ../.. -- jest --detectOpenHandles --forceExit",
         "test:watch": "NODE_OPTIONS=--experimental-vm-modules dotenv-run -r ../.. -- jest --watch --detectOpenHandles",
         "test:coverage": "NODE_OPTIONS=--experimental-vm-modules dotenv-run -r ../.. -- jest --coverage --detectOpenHandles --forceExit",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "key:generate": "dotenv-run -r ../.. -- tsx ./src/scripts/generateApiKey.ts"
     },
     "dependencies": {
         "@anycrawl/ai": "workspace:*",
@@ -19,9 +20,11 @@
         "@anycrawl/libs": "workspace:*",
         "@anycrawl/scrape": "workspace:*",
         "@anycrawl/search": "workspace:*",
+        "@anycrawl/template-client": "workspace:*",
         "body-parser": "^2.2.0",
         "cors": "^2.8.5",
         "express": "^5.1.0",
+        "minimatch": "^10.0.3",
         "morgan": "^1.10.0",
         "response-time": "^2.3.3",
         "zod": "^3.25.76"

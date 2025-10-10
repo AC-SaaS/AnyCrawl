@@ -6,10 +6,13 @@
     "pages": [
         "---Get Started---",
         "index",
+        "mcp",
         "---Scrape & Crawl---",
         "crawl",
         "scrape",
         "json-mode",
+        "---Template---",
+        "template",
         "---Search---",
         "search",
         "---Self Host---",

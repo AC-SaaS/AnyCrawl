@@ -182,7 +182,7 @@ await client.search({
     lang: "en",
     country: "US",
     scrape_options: { engine: "cheerio", formats: ["markdown"] },
-    safeSearch: 1,
+    safe_search: 1,
 });
 ```
 

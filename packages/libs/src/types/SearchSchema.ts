@@ -1,0 +1,46 @@
+import { z } from "zod";
+import { SearchLocale } from "../data/Locale.js";
+import { AVAILABLE_SEARCH_ENGINES } from "../constants.js";
+import { baseSchema } from "./BaseSchema.js";
+
+const scrapeOptionsInputSchema = baseSchema
+    .pick({
+        engine: true,
+        proxy: true,
+        formats: true,
+        timeout: true,
+        wait_for: true,
+        include_tags: true,
+        exclude_tags: true,
+        json_options: true,
+        extract_source: true,
+    })
+    .strict();
+
+const searchSchema = z.object({
+    template_id: z.string().optional(),
+    variables: z.record(z.any()).optional(),
+    engine: z.enum(AVAILABLE_SEARCH_ENGINES).optional(),
+    query: z.string(),
+    limit: z.number().max(100).min(1).default(10).optional(),
+    offset: z.number().min(0).default(0).optional(),
+    pages: z.number().min(1).max(20).optional(),
+    lang: z.custom<SearchLocale>().optional(),
+    country: z.custom<SearchLocale>().optional(),
+    scrape_options: scrapeOptionsInputSchema.optional(),
+    safe_search: z.number().min(0).max(2).nullable().optional(), // 0: off, 1: medium, 2: high, null: default (Google only)
+});
+export const TemplateSearchSchema = searchSchema.pick({
+    engine: true,
+    query: true,
+    limit: true,
+    offset: true,
+    pages: true,
+    lang: true,
+    country: true,
+    scrape_options: true,
+    safe_search: true
+});
+export type TemplateSearchSchema = z.infer<typeof TemplateSearchSchema>;
+export type SearchSchema = z.infer<typeof searchSchema>;
+export { searchSchema };

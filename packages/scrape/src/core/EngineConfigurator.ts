@@ -1,7 +1,7 @@
 import { AD_DOMAINS, log } from "@anycrawl/libs";
 import { BrowserName } from "crawlee";
 import { ProgressManager } from "../managers/Progress.js";
-import { JOB_TYPE_CRAWL } from "../constants.js";
+import { JOB_TYPE_CRAWL } from "@anycrawl/libs";
 import { CrawlLimitReachedError } from "../errors/index.js";
 
 export enum ConfigurableEngineType {
@@ -134,6 +134,7 @@ export class EngineConfigurator {
 
         // Merge with existing preNavigationHooks
         const existingHooks = options.preNavigationHooks || [];
+
         options.preNavigationHooks = [limitFilterHook, ...existingHooks];
 
         log.debug(`[EngineConfigurator] Pre-navigation hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, limitFilterHook=${options.preNavigationHooks.includes(limitFilterHook)}, existingHooks=${existingHooks.length}`);
@@ -331,4 +332,4 @@ export class EngineConfigurator {
     private static configureCheerio(options: any): void {
         // Cheerio-specific configurations can be added here
     }
-} 
+}

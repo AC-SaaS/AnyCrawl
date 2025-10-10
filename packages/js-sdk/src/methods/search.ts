@@ -12,7 +12,7 @@ export async function search(client: AxiosInstance, input: SearchRequest): Promi
     if (input.country != null) body.country = input.country;
     const scrapeOptions = buildSearchScrapeOptions(input.scrape_options);
     if (scrapeOptions && Object.keys(scrapeOptions).length > 0) body.scrape_options = scrapeOptions;
-    if (input.safeSearch != null) body.safeSearch = input.safeSearch;
+    if (input.safe_search != null) body.safe_search = input.safe_search;
     const response: AxiosResponse<ApiResponse<SearchResult[]>> = await client.post('/v1/search', body);
     if (!response.data.success) throw new Error((response.data as any).error || 'Search failed');
     return (response.data as any).data;

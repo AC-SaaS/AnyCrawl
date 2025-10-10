@@ -1,12 +1,11 @@
 import { Response } from "express";
 import { z } from "zod";
-import { crawlSchema } from "../../types/CrawlSchema.js";
-import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager } from "@anycrawl/scrape";
-import { RequestWithAuth } from "../../types/Types.js";
-import { randomUUID } from "crypto";
-import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS } from "@anycrawl/db";
-import { CrawlSchemaInput } from "../../types/CrawlSchema.js";
+import { crawlSchema, RequestWithAuth, CrawlSchemaInput } from "@anycrawl/libs";
+import { QueueManager, CrawlerErrorType, RequestTask, ProgressManager, AVAILABLE_ENGINES } from "@anycrawl/scrape";
+import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJobResultsCount, STATUS, getTemplate } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
+import { TemplateHandler } from "../../utils/templateHandler.js";
+import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
 
 export class CrawlController {
     /**
@@ -14,9 +13,31 @@ export class CrawlController {
      */
     public start = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
+        let deffaultPrice: number = 0;
         try {
-            // Validate request body
-            const jobPayload = crawlSchema.parse(req.body);
+            // Merge template options with request body before parsing
+            let requestData = { ...req.body };
+
+            if (requestData.template_id) {
+                // Validate: when using template_id, only specific fields are allowed
+                if (!validateTemplateOnlyFields(requestData, res, "crawl")) {
+                    return;
+                }
+
+                const currentUserId = req.auth?.user ? String(req.auth.user) : undefined;
+
+                requestData = await TemplateHandler.mergeRequestWithTemplate(
+                    requestData,
+                    "crawl",
+                    currentUserId
+                );
+                deffaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+                // Remove template field before schema validation (schemas use strict mode)
+                delete requestData.template;
+            }
+
+            // Validate and parse the merged data
+            const jobPayload = crawlSchema.parse(requestData);
 
             // Check if user has enough credits for the requested limit
             if (req.auth && process.env.ANYCRAWL_API_AUTH_ENABLED === "true" && process.env.ANYCRAWL_API_CREDITS_ENABLED === "true") {
@@ -38,7 +59,7 @@ export class CrawlController {
             // Add job to queue
             jobId = await QueueManager.getInstance().addJob(`crawl-${jobPayload.engine}`, jobPayload);
 
-            req.creditsUsed = 0;
+            req.creditsUsed = deffaultPrice;
 
             await createJob({
                 job_id: jobId,

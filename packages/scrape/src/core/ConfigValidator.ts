@@ -1,4 +1,4 @@
-import { EngineOptions } from "../engines/Base.js";
+import { EngineOptions } from "../types/engine.js";
 
 /**
  * Configuration validator for engine options
@@ -69,4 +69,4 @@ export class ConfigValidator {
             throw new Error("EngineOptions validation failed: requestQueueName must be a string");
         }
     }
-} 
+}

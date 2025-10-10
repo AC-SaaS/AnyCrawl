@@ -16,54 +16,19 @@ import {
 import { insertJobResult, failedJob, completedJob } from "@anycrawl/db";
 import { JOB_RESULT_STATUS } from "../../../db/dist/map.js";
 import { ProgressManager } from "../managers/Progress.js";
-import { JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE } from "../constants.js";
+import { JOB_TYPE_CRAWL, JOB_TYPE_SCRAPE } from "@anycrawl/libs";
 import { CrawlLimitReachedError } from "../errors/index.js";
+import type { CrawlingContext, EngineOptions } from "../types/engine.js";
+
+// Template system imports - directly use @anycrawl/template-client
 
 // Re-export core types for backward compatibility
 export type { MetadataEntry, BaseContent } from "../core/DataExtractor.js";
 export { ExtractionError } from "../core/DataExtractor.js";
 export { ConfigurableEngineType as BaseEngineType } from "../core/EngineConfigurator.js";
 
-// Type definitions
-export type CrawlingContext =
-    | BrowserCrawlingContext<Dictionary>
-    | CheerioCrawlingContext<Dictionary>
-    | PlaywrightCrawlingContext<Dictionary>
-    | PuppeteerCrawlingContext<Dictionary>;
-
-export interface EngineOptions {
-    minConcurrency?: number;
-    maxConcurrency?: number;
-    maxRequestRetries?: number;
-    requestHandlerTimeoutSecs?: number;
-    requestHandler?: (context: CrawlingContext) => Promise<any> | void;
-    failedRequestHandler?: (context: CrawlingContext, error: Error) => Promise<any> | void;
-    maxRequestsPerCrawl?: number;
-    maxRequestTimeout?: number;
-    navigationTimeoutSecs?: number;
-    requestQueueName?: string;
-    requestQueue?: RequestQueue;
-    autoscaledPoolOptions?: {
-        isFinishedFunction: () => Promise<boolean>;
-    };
-    launchContext?: {
-        launchOptions?: {
-            args?: string[];
-            defaultViewport?: {
-                width: number;
-                height: number;
-            };
-        };
-    };
-    preNavigationHooks?: ((context: CrawlingContext) => Promise<any>)[];
-    additionalMimeTypes?: string[];
-    keepAlive?: boolean;
-    proxyConfiguration?: ProxyConfiguration;
-    maxSessionRotations?: number;
-    useSessionPool?: boolean;
-    persistCookiesPerSession?: boolean;
-    headless?: boolean;
-}
+// Re-export types from the dedicated types file
+export type { CrawlingContext, EngineOptions } from "../types/engine.js";
 
 /**
  * Lightweight BaseEngine abstract class
@@ -78,6 +43,9 @@ export abstract class BaseEngine {
     // Composition over inheritance - use specialized classes
     protected dataExtractor = new DataExtractor();
     protected jobManager = new JobManager();
+
+    // Template client for handling template-based requests
+    protected templateClient: any = null;
 
     /**
      * Determine if the status code falls within a specific category
@@ -334,10 +302,10 @@ export abstract class BaseEngine {
     protected async handleCrawlLogic(context: CrawlingContext, data: any): Promise<void> {
 
         const limit = context.request.userData.crawl_options?.limit || 10;
-        const maxDepth = context.request.userData.crawl_options?.maxDepth || 10;
+        const maxDepth = context.request.userData.crawl_options?.max_depth || 10;
         const strategy = context.request.userData.crawl_options?.strategy || 'same-domain';
-        const includePaths = context.request.userData.crawl_options?.includePaths || [];
-        const excludePaths = context.request.userData.crawl_options?.excludePaths || [];
+        const includePaths = context.request.userData.crawl_options?.include_paths || [];
+        const excludePaths = context.request.userData.crawl_options?.exclude_paths || [];
 
         try {
             // If already finalized or enqueued reached limit, skip enqueue
@@ -488,12 +456,37 @@ export abstract class BaseEngine {
         // Set default options
         this.options = {
             maxRequestRetries: 2,
-            requestHandlerTimeoutSecs: 30,
+            requestHandlerTimeoutSecs: process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS ? parseInt(process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS) : 600,
             ...options,
         };
 
         // Set the request queue if provided
         this.queue = options.requestQueue;
+
+        // Initialize template client
+        this.initializeTemplateClient().catch(error => {
+            console.log('Template client initialization failed:', error);
+        });
+    }
+
+    /**
+     * Initialize template client
+     */
+    private async initializeTemplateClient(): Promise<void> {
+        try {
+            // Import TemplateClient from @anycrawl/template-client package
+            const { TemplateClient } = await import('@anycrawl/template-client');
+            this.templateClient = new TemplateClient();
+            console.log('Template client initialized successfully');
+        } catch (error) {
+            console.log('Failed to initialize template client:', error);
+        }
+    }
+    /**
+     * Check if template client is ready for use
+     */
+    private isTemplateClientReady(): boolean {
+        return this.templateClient !== null;
     }
 
     /**
@@ -517,15 +510,127 @@ export abstract class BaseEngine {
             // check if http status code is 400 or higher
             const isHttpError = await checkHttpError(context);
             let data = null;
+
+            // Create a Promise wrapper to control page lifecycle for template execution
+            // Based on: https://github.com/apify/crawlee/discussions/2242
+            // The page will NOT be closed until this promise resolves
+            let templateExecutionResolver!: () => void;
+            const templateExecutionPromise = new Promise<void>((resolve) => {
+                templateExecutionResolver = resolve;
+            });
+
             try {
-                // check if waitFor is set, and it is browser engine
-                if (context.request.userData.options?.waitFor) {
+                // check if wait_for is set, and it is browser engine
+                if (context.request.userData.options?.wait_for) {
                     if (context.page) {
-                        log.debug(`Waiting for ${context.request.userData.options.waitFor} seconds for ${context.request.url}`);
-                        await sleep(context.request.userData.options.waitFor);
+                        log.debug(`Waiting for ${context.request.userData.options.wait_for} seconds for ${context.request.url}`);
+                        await sleep(context.request.userData.options.wait_for);
                     } else {
-                        log.warning(`'waitFor' option is not supported for non-browser crawlers. URL: ${context.request.url}`);
+                        log.warning(`'wait_for' option is not supported for non-browser crawlers. URL: ${context.request.url}`);
                     }
+                }
+
+                // Check if this is a template-based request BEFORE extraction
+                const templateId = context.request.userData.options?.template_id;
+                const hasTemplate = templateId && this.isTemplateClientReady();
+
+                if (hasTemplate) {
+                    // Execute template and extraction CONCURRENTLY
+                    // This ensures page stays alive during BOTH operations
+                    log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Starting concurrent extraction and template execution`);
+
+                    try {
+                        const templateVariables = context.request.userData.templateVariables || {};
+
+                        // Lightweight heartbeat to keep Playwright page active during long-running template/debug
+                        const page = (context as any).page;
+                        let keepAlive = true;
+                        const keepAlivePromise = (async () => {
+                            if (!page) return;
+                            while (keepAlive) {
+                                try {
+                                    // tiny no-op using a safe method that does not execute JS in the page
+                                    if (!page.isClosed || !page.isClosed()) {
+                                        // url() is lightweight and safe to call; it keeps the connection active
+                                        await page.url();
+                                    } else {
+                                        break;
+                                    }
+                                } catch {
+                                    // ignore transient evaluation errors
+                                }
+                                await sleep(1000);
+                            }
+                        })();
+
+                        // Start both operations in parallel
+                        const [extractionData, templateResult] = await Promise.all([
+                            // Extraction promise
+                            this.dataExtractor.extractData(context),
+
+                            // Template execution promise
+                            (async () => {
+                                const templateExecutionContext = {
+                                    templateId,
+                                    request: {
+                                        url: context.request.url,
+                                        method: context.request.method || 'GET',
+                                        headers: context.request.headers || {},
+                                        body: (context.request as any).body
+                                    },
+                                    userData: context.request.userData,
+                                    variables: templateVariables,
+                                    metadata: {
+                                        engine: this.constructor.name.toLowerCase().replace('engine', ''),
+                                        timestamp: new Date().toISOString(),
+                                        // Propagate per-request timeout to template sandbox if provided
+                                        timeout: context.request.userData?.options?.timeout
+                                    },
+                                    response: context.response,
+                                    scrapeResult: {}, // Template starts without scrapeResult, but has page access
+                                    // Pass page object for browser-based engines (Playwright/Puppeteer)
+                                    page: (context as any).page
+                                };
+
+                                log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Template execution started: ${templateId}`);
+                                const result = await this.templateClient!.executeTemplate(templateId as string, templateExecutionContext);
+                                log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Template execution completed: ${templateId}`);
+                                return result;
+                            })()
+                        ]);
+
+                        // Merge results
+                        data = extractionData;
+                        if (templateResult.success && templateResult.data.result) {
+                            data = {
+                                ...data,
+                                ...templateResult.data.result
+                            }
+                        }
+
+                        log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Concurrent execution completed successfully`);
+                    } finally {
+                        // stop heartbeat and wait for it to exit
+                        try {
+                            // keepAlive is defined in try scope; set false to exit loop
+                            (async () => { /* scope guard */ })();
+                        } catch { }
+                        try {
+                            // @ts-ignore - keepAlive is in scope of this finally
+                            keepAlive = false;
+                        } catch { }
+                        try {
+                            // @ts-ignore - keepAlivePromise is in scope of this finally
+                            await keepAlivePromise;
+                        } catch { }
+                    }
+                    templateExecutionResolver?.();
+                } else {
+                    // No template, just run extraction
+                    data = await this.dataExtractor.extractData(context);
+
+                    // Resolve immediately since no template
+                    templateExecutionResolver?.();
                 }
 
                 // Run custom handler if provided
@@ -534,22 +639,25 @@ export abstract class BaseEngine {
                     return;
                 }
 
-                // Extract data using DataExtractor
-                data = await this.dataExtractor.extractData(context);
                 // insert job result - use parentId if available (for search scrape), otherwise use jobId
                 const resultJobId = context.request.userData.parentId || context.request.userData.jobId;
                 await insertJobResult(resultJobId, context.request.url, data, JOB_RESULT_STATUS.SUCCESS);
+
                 // Handle crawl logic if this is a crawl job
-
                 if (context.request.userData.type === JOB_TYPE_CRAWL) {
-
                     await this.handleCrawlLogic(context, data);
                 }
+
                 // add jobId to data
                 data.jobId = context.request.userData.jobId;
 
             } catch (error) {
-                // Only handle extraction-specific errors here; let others bubble to failedRequestHandler
+                console.log('Error in requestHandler:', error);
+
+                // Ensure template execution promise is resolved even on error
+                templateExecutionResolver?.();
+
+                // Handle extraction-specific errors here; rethrow others to failedRequestHandler
                 if (error instanceof ExtractionError) {
                     await this.handleExtractionError(
                         context,
@@ -574,6 +682,7 @@ export abstract class BaseEngine {
                     } catch { }
                     return;
                 }
+                throw error;
             }
             const { queueName, jobId } = context.request.userData;
 
@@ -637,6 +746,30 @@ export abstract class BaseEngine {
 
             // Note: Progress checking is now handled by limitFilterHook in preNavigationHooks
             // This eliminates duplicate logic and ensures consistent behavior
+
+            // Check if this is a template-based request and handle template failure
+            const templateId = context.request.userData.templateId;
+            if (templateId && this.templateClient?.isInitialized()) {
+                try {
+                    log.debug(`Handling template failure for ${templateId}: ${error.message}`);
+                    const templateVariables = context.request.userData.templateVariables || {};
+                    const templateFailureResult = await this.templateClient.executeFailureHandler(
+                        context,
+                        templateId,
+                        error,
+                        templateVariables
+                    );
+
+                    // If template failure handler returns data, use it
+                    if (templateFailureResult.data) {
+                        log.info(`Template failure handler processed error for ${templateId}`);
+                        return;
+                    }
+                } catch (templateError) {
+                    log.error(`Template failure handler failed for ${templateId}: ${templateError instanceof Error ? templateError.message : String(templateError)}`);
+                    // Continue with default failure handling
+                }
+            }
 
             // Run custom handler if provided
             if (customFailedRequestHandler) {
@@ -726,4 +859,4 @@ export abstract class BaseEngine {
      * Abstract method for engine initialization
      */
     abstract init(): Promise<void>;
-} 
+}

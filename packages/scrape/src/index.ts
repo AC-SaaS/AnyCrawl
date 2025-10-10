@@ -1,6 +1,6 @@
 // Core types and utilities first
 export * from "./types/crawler.js";
-export * from "./constants.js";
+
 export * from "./Utils.js";
 
 // Base engine and core functionality
@@ -28,3 +28,4 @@ export * from "./managers/EngineQueue.js";
 export * from "./managers/Queue.js";
 export * from "./managers/Event.js";
 export * from "./managers/Progress.js";
+export * from "./HttpClient.js";

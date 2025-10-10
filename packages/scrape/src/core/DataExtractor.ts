@@ -1,7 +1,7 @@
 import { log } from "@anycrawl/libs"
 import { htmlToMarkdown } from "@anycrawl/libs/html-to-markdown";
 import { HTMLTransformer, ExtractionOptions, TransformOptions } from "./transformers/HTMLTransformer.js";
-import type { CrawlingContext } from "../engines/Base.js";
+import type { CrawlingContext } from "../types/engine.js";
 import { ScreenshotTransformer } from "./transformers/ScreenshotTransformer.js";
 import { convert } from "html-to-text"
 import * as cheerio from "cheerio";
@@ -239,8 +239,8 @@ export class DataExtractor {
             // Prepare all format tasks for concurrent execution
             const formatTasks: Record<string, Promise<any>> = {};
             const transformOptions: TransformOptions = {
-                includeTags: options.includeTags,
-                excludeTags: options.excludeTags,
+                include_tags: options.include_tags,
+                exclude_tags: options.exclude_tags,
                 baseUrl: context.request.url,
                 transformRelativeUrls: true
             };
@@ -285,15 +285,15 @@ export class DataExtractor {
                     return result;
                 })();
             }
-            // json_options, need to extract data from markdown or html based on extractSource option
+            // json_options, need to extract data from markdown or html based on extract_source option
             if (options.json_options && formats.includes("json")) {
                 // Resolve extract model id via config-aware helper
                 const modelId = getExtractModelId();
-                const extractSource = options.extractSource || "markdown";
-                log.info(`[extract] Resolved extract model: ${modelId}, extract source: ${extractSource}`);
+                const extract_source = options.extract_source || "markdown";
+                log.info(`[extract] Resolved extract model: ${modelId}, extract source: ${extract_source}`);
                 formatTasks.json = (async () => {
                     let extractContent: string;
-                    if (extractSource === "html") {
+                    if (extract_source === "html") {
                         // Extract from HTML
                         extractContent = await (htmlPromise ?? Promise.resolve(baseContent.rawHtml));
                     } else {
@@ -354,4 +354,4 @@ export class DataExtractor {
         // Always throw a typed ExtractionError so callers can distinguish
         throw ExtractionError.fromError('extractData', error);
     }
-} 
+}

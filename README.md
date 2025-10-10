@@ -49,6 +49,36 @@ LLM‑friendly. Easy to integrate and use.
 
 📖 See full docs: [Docs](https://docs.anycrawl.dev)
 
+### Generate an API Key (self-host)
+
+If you enable authentication (`ANYCRAWL_API_AUTH_ENABLED=true`), generate an API key:
+
+```bash
+pnpm --filter api key:generate
+# optionally name the key
+pnpm --filter api key:generate -- default
+```
+
+The command prints uuid, key and credits. Use the printed key as a Bearer token.
+
+#### Run Inside Docker
+
+If running AnyCrawl via Docker:
+
+- Docker Compose:
+
+```bash
+docker compose exec api pnpm --filter api key:generate
+docker compose exec api pnpm --filter api key:generate -- default
+```
+
+- Single container (replace <container_name_or_id>):
+
+```bash
+docker exec -it <container_name_or_id> pnpm --filter api key:generate
+docker exec -it <container_name_or_id> pnpm --filter api key:generate -- default
+```
+
 ## 📚 Usage Examples
 
 💡 Use the [Playground](https://anycrawl.dev/playground) to test APIs and generate code in your preferred language.

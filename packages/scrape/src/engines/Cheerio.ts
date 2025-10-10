@@ -1,5 +1,5 @@
 import { BaseEngine, BaseEngineType } from "./Base.js";
-import type { EngineOptions, CrawlingContext } from "./Base.js";
+import type { EngineOptions, CrawlingContext } from "../types/engine.js";
 import { CheerioCrawler, log, CheerioCrawlingContext, Dictionary, Dataset } from "crawlee";
 
 /**
