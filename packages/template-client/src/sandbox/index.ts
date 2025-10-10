@@ -59,8 +59,8 @@ export class QuickJSSandbox {
 
     constructor(config?: Partial<SandboxConfig>) {
         // Read timeout from environment variable or use default
-        const envTimeout = process.env.TEMPLATE_EXECUTION_TIMEOUT
-            ? parseInt(process.env.TEMPLATE_EXECUTION_TIMEOUT)
+        const envTimeout = process.env.ANYCRAWL_TEMPLATE_EXECUTION_TIMEOUT
+            ? parseInt(process.env.ANYCRAWL_TEMPLATE_EXECUTION_TIMEOUT)
             : 60000; // 60 seconds default for browser automation
 
         this.config = {

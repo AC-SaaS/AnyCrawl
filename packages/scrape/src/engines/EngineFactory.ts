@@ -11,7 +11,7 @@ export interface IEngineFactory {
 
 // Default configurations
 const defaultOptions: EngineOptions = {
-    requestHandlerTimeoutSecs: 600,
+    requestHandlerTimeoutSecs: process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS ? parseInt(process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS) : 600,
     keepAlive: process.env.ANYCRAWL_KEEP_ALIVE === "false" ? false : true,
     useSessionPool: true,
     persistCookiesPerSession: false

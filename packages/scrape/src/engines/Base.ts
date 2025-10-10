@@ -456,7 +456,7 @@ export abstract class BaseEngine {
         // Set default options
         this.options = {
             maxRequestRetries: 2,
-            requestHandlerTimeoutSecs: 600,
+            requestHandlerTimeoutSecs: process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS ? parseInt(process.env.ANYCRAWL_REQUEST_HANDLER_TIMEOUT_SECS) : 600,
             ...options,
         };
 
