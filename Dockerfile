@@ -45,10 +45,13 @@ COPY packages/typescript-config/package.json ./packages/typescript-config/
 # Install dependencies
 RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
 
+# Copy typescript config files (needed for build)
+COPY packages/typescript-config/ ./packages/typescript-config/
+COPY packages/eslint-config/ ./packages/eslint-config/
+
 # Copy source code and build dependencies first
 COPY . .
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db
-RUN pnpm build --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai --filter=@anycrawl/template-client
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai
 RUN pnpm build --filter=api
 
 # Remove dev dependencies
