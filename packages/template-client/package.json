@@ -61,5 +61,10 @@
     },
     "peerDependencies": {
         "@anycrawl/scrape": "workspace:*"
+    },
+    "peerDependenciesMeta": {
+        "@anycrawl/scrape": {
+            "optional": true
+        }
     }
 }

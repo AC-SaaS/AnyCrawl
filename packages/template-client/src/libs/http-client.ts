@@ -24,6 +24,7 @@ export function createHttpCrawlee(defaultProxy?: string) {
     let clientPromise: Promise<HttpClientLike> | null = null;
     const load = async (): Promise<HttpClientLike> => {
         if (!clientPromise) {
+            // @ts-ignore - Dynamic import of optional peer dependency, available at runtime
             clientPromise = import('@anycrawl/scrape').then(m => m.HttpClient as unknown as HttpClientLike);
         }
         return clientPromise;
