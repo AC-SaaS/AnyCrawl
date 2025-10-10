@@ -358,6 +358,36 @@ ANYCRAWL_API_AUTH_ENABLED=true
 
 After enabling authentication, you need to add an ApiKey and use it in request headers.
 
+### Generate an API Key
+
+If you enabled authentication (`ANYCRAWL_API_AUTH_ENABLED=true`), generate an API key from the repository root:
+
+```bash
+pnpm --filter api key:generate
+# optionally name the key
+pnpm --filter api key:generate -- default
+```
+
+The command prints `uuid`, `key`, and `credits`. Use the printed key in the `Authorization: Bearer <KEY>` header.
+
+#### Run Inside Docker Container
+
+If you're running via Docker, execute the command inside the container:
+
+- Using Docker Compose:
+
+```bash
+docker compose exec api pnpm --filter api key:generate
+docker compose exec api pnpm --filter api key:generate -- default
+```
+
+- Using a single container (replace <container_name_or_id>):
+
+```bash
+docker exec -it <container_name_or_id> pnpm --filter api key:generate
+docker exec -it <container_name_or_id> pnpm --filter api key:generate -- default
+```
+
 2. **Use HTTPS**:
 
 Reference:

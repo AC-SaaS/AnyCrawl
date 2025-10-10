@@ -5,6 +5,137 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.1] - 2025-10-11
+
+### Added
+
+- Template system with validation, execution, trusted flag, and caching; includes new database schema for templates and template executions
+- Template integration across `CrawlController`, `ScrapeController`, and `SearchController`, including template variables support and request data merging
+- Template field validation in controllers to ensure only allowed fields are used with `template_id`
+- Template documentation and OpenAPI template schema; examples and usage guidelines for API integration
+- Base Jest configuration for the monorepo with ESM support and shared settings; added JSON schema validation tests
+- Search locale mapping for unsupported languages to improve tokenizer support in Orama
+- Worker periodic cleanup for expired pending jobs
+- New environment variables for template execution and request handler timeouts; engines updated to consume them
+- HTML→Markdown enhancements: linked image handling, `figure`/`picture` normalization, `figcaption` support, and post-processing cleanup
+- CLI: add `key:generate` command to generate API keys
+
+### Changed
+
+- Standardized naming conventions across API/Search to use `safe_search` in place of `safeSearch`
+- Refactored constants into a dedicated module; reorganized dependency usage across `@anycrawl/libs`, `@anycrawl/scrape`, and `@anycrawl/search`
+- Improved template permission checks to validate user access based on ownership and status
+- Enhanced schemas and validation logic to support template features and variables
+- Proxy behavior adjustments in `newProxyInfo` to allow null URLs and safer fallbacks; minor type refinements (e.g., `attachFile` cast)
+
+### Fixed
+
+- `@anycrawl/js-sdk`: avoid throwing on cancelled crawls to improve control flow during job execution
+
+## [0.0.1] - 2025-09-14
+
+### Added
+
+- `@anycrawl/js-sdk` client for scraping, crawling, and search with axios integration, logging, and Jest tests
+- OpenAPI schema support for `extract_source` in JSON extraction
+- Controllers updated to support customizable `extract_source`; improved credit calculation and logging for HTML/Markdown formats
+
+## [0.0.1-beta.18] - 2025-09-06
+
+### Added
+
+- Customizable scrape options in `SearchController`/`SearchService`, including limit handling and URL enrichment
+- Request configuration enhancements in `EngineConfigurator` (timeout and navigation options)
+
+## [0.0.1-beta.17] - 2025-09-03
+
+### Added
+
+- Enforced `limit`/`offset` constraints in `SearchController`/`SearchSchema`
+- Periodic logging for browser engine status and configuration visibility for authentication and credits
+- Docker build tools for native modules; ensured `better-sqlite3` rebuilds in Docker images
+
+### Changed
+
+- Improved error handling in body parsing and server timeouts
+- Finalize crawl jobs on extraction errors in `BaseEngine` to improve completion tracking
+
+## [0.0.1-beta.16] - 2025-09-02
+
+### Added
+
+- Startup logging for authentication and credits configuration
+
+### Fixed
+
+- Credit deduction transaction handling to ensure atomic updates; refined remaining credits logging
+
+## [0.0.1-beta.15] - 2025-09-01
+
+### Changed
+
+- Added enqueuing state tracking in `BaseEngine`/`ProgressManager`, improved job finalization logic, and enqueue error handling
+
+## [0.0.1-beta.14] - 2025-08-30
+
+### Added
+
+- Periodic finalization checks for crawl jobs based on limits with improved trace logging
+
+### Fixed
+
+- `ScreenshotTransformer` now includes unique request identifiers in filenames to prevent duplication
+
+## [0.0.1-beta.13] - 2025-08-29
+
+### Changed
+
+- Improved `DeductCreditsMiddleware` credit deduction logic with route checks and better traceability
+
+### Fixed
+
+- Mark jobs as failed if no pages are successfully processed in `ProgressManager`
+
+## [0.0.1-beta.12] - 2025-08-28
+
+### Added
+
+- Applied common hooks across all engines in `EngineConfigurator`
+- Integrated `ProgressManager` in `CrawlController` to handle job cancellation and finalize flags
+
+### Changed
+
+- Enhanced debug logging in `EngineConfigurator` and set development log level
+- Refined insufficient credits response in `CrawlController` to include a clear message field
+- Documentation: added X.com badge to README
+
+## [0.0.1-beta.11] - 2025-08-28
+
+### Changed
+
+- `CrawlController` insufficient credits response now provides current credits for clarity
+
+## [0.0.1-beta.10] - 2025-08-28
+
+### Added
+
+- Credit validation in `CrawlController` to ensure users have sufficient credits for requested crawl limits
+
+### Changed
+
+- Enhanced `DeductCreditsMiddleware` for asynchronous credit deduction and improved transaction handling in `ProgressManager`
+
+## [0.0.1-beta.9] - 2025-08-26
+
+### Added
+
+- Introduced `CrawlLimitReachedError` and a limit filter hook in `EngineConfigurator`; updated `ProgressManager` for limit-based credit handling
+
+### Changed
+
+- Improved progress checks in `BaseEngine`/`ProgressManager` to prevent navigation/request handling when limits are reached or jobs are cancelled
+- Documentation updates in README
+
 ## [0.0.1-beta.8] - 2025-08-25
 
 ### Fixed
@@ -144,6 +275,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Streamlined job payload structure in `ScrapeController` by transforming validated request data.
 - Updated `ScrapeSchema` to encapsulate options within a single object for improved clarity and maintainability.
+
+## [0.0.1-alpha.6.2] - 2025-06-17
+
+### Changed
+
+- Restructured API routing: created a dedicated public router and updated screenshot path handling in `ScrapeController` for clarity
+
+### Chore
+
+- Updated changelog for version 0.0.1-alpha.6.2
+
+## [0.0.1-alpha.6.1] - 2025-06-16
+
+### Chore
+
+- Incremented `GITHUB_TAG` to `v0.0.1-alpha.6.1` in Docker image workflows
 
 ## [0.0.1-alpha.5] - 2025-06-14
 
