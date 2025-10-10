@@ -11,7 +11,7 @@ export interface IEngineFactory {
 
 // Default configurations
 const defaultOptions: EngineOptions = {
-    requestHandlerTimeoutSecs: 60,
+    requestHandlerTimeoutSecs: 600,
     keepAlive: process.env.ANYCRAWL_KEEP_ALIVE === "false" ? false : true,
     useSessionPool: true,
     persistCookiesPerSession: false
@@ -24,21 +24,36 @@ if (process.env.ANYCRAWL_MAX_CONCURRENCY) {
     defaultOptions.maxConcurrency = parseInt(process.env.ANYCRAWL_MAX_CONCURRENCY);
 }
 
+// Build platform-aware Chromium args to avoid instability on macOS/Windows
 const defaultLaunchContext: Partial<LaunchContext> = {
     launchOptions: {
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--single-process",
-            "--disable-gpu",
-            ...(process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true"
+        args: (() => {
+            const isLinux = process.platform === 'linux';
+            const baseArgs = [
+                "--no-first-run",
+                "--disable-accelerated-2d-canvas",
+            ];
+            const sslArgs = (process.env.ANYCRAWL_IGNORE_SSL_ERROR === "true")
                 ? ["--ignore-certificate-errors", "--ignore-certificate-errors-spki-list"]
-                : []),
-        ],
+                : [];
+            if (isLinux) {
+                // Only apply these flags on Linux/Docker where they're needed
+                return [
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--no-zygote",
+                    "--disable-gpu",
+                    ...baseArgs,
+                    ...sslArgs,
+                ];
+            }
+            // On macOS/Windows, avoid single-process/no-sandbox which cause random page crashes
+            return [
+                ...baseArgs,
+                ...sslArgs,
+            ];
+        })(),
         defaultViewport: {
             width: 1920,
             height: 1080

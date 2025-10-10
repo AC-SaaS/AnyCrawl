@@ -159,6 +159,7 @@ return handleFailedRequest();
     status: "published",
     reviewStatus: "approved",
     reviewNotes: "Template created based on real AnyCrawl API examples",
+    trusted: false,
     createdAt: new Date("2024-01-15T08:00:00Z"),
     updatedAt: new Date("2024-01-15T10:30:00Z"),
     publishedAt: new Date("2024-01-15T10:30:00Z"),

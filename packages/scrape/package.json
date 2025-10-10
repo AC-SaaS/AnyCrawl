@@ -20,6 +20,11 @@
             "import": "./dist/index.js",
             "default": "./dist/index.js"
         },
+        "./HttpClient": {
+            "types": "./dist/HttpClient.d.ts",
+            "import": "./dist/HttpClient.js",
+            "default": "./dist/HttpClient.js"
+        },
         "./constants": {
             "types": "./dist/constants.d.ts",
             "import": "./dist/constants.js",

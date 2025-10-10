@@ -487,6 +487,12 @@ export class TemplateVariableMapper {
             }
 
             const targetPath = variableConfig.mapping.target;
+            // Precedence: explicit params > variables (mapping) > defaultValue
+            // Do not override explicitly provided values already present in requestData
+            const existingValue = TemplateVariableMapper.getNestedValue(updatedData, targetPath);
+            if (existingValue !== undefined && existingValue !== null) {
+                continue;
+            }
             TemplateVariableMapper.setNestedValue(updatedData, targetPath, value);
         }
 

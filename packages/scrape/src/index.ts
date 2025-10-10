@@ -28,3 +28,4 @@ export * from "./managers/EngineQueue.js";
 export * from "./managers/Queue.js";
 export * from "./managers/Event.js";
 export * from "./managers/Progress.js";
+export * from "./HttpClient.js";

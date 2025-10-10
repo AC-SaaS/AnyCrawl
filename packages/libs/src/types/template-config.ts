@@ -91,6 +91,9 @@ export interface TemplateConfig {
     reviewStatus: "pending" | "approved" | "rejected";
     reviewNotes?: string;
 
+    // Security
+    trusted: boolean; // If true, can use AsyncFunction with page object; if false, must use VM sandbox
+
     // Timestamps
     createdAt: Date;
     updatedAt: Date;
@@ -122,6 +125,7 @@ export interface TemplateClientConfig {
 export interface TemplateExecutionContext {
     templateId: string;
     variables?: Record<string, any>;
+    userData?: Record<string, any>;
     request: {
         url: string;
         method?: string;

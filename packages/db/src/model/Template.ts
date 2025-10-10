@@ -22,6 +22,7 @@ export interface CreateTemplateParams {
     status?: string;
     reviewStatus?: string;
     reviewNotes?: string;
+    trusted?: boolean;
 }
 
 export class Template {
@@ -49,6 +50,7 @@ export class Template {
             status: params.status || 'draft',
             reviewStatus: params.reviewStatus || 'pending',
             reviewNotes: params.reviewNotes || '',
+            trusted: params.trusted || false,
             createdAt: new Date(),
             updatedAt: new Date(),
             publishedAt: params.publishedBy ? new Date() : null,
@@ -102,6 +104,7 @@ export class Template {
         if (updates.status !== undefined) updateData.status = updates.status;
         if (updates.reviewStatus !== undefined) updateData.reviewStatus = updates.reviewStatus;
         if (updates.reviewNotes !== undefined) updateData.reviewNotes = updates.reviewNotes;
+        if (updates.trusted !== undefined) updateData.trusted = updates.trusted;
         if (updates.version !== undefined) updateData.version = updates.version;
 
         const result = await db
@@ -200,6 +203,7 @@ export class Template {
             status: row.status,
             reviewStatus: row.reviewStatus,
             reviewNotes: row.reviewNotes,
+            trusted: row.trusted || false,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             publishedAt: row.publishedAt,

@@ -521,6 +521,9 @@ importers:
       '@anycrawl/libs':
         specifier: workspace:*
         version: link:../libs
+      '@anycrawl/scrape':
+        specifier: workspace:*
+        version: link:../scrape
       minimatch:
         specifier: ^10.0.3
         version: 10.0.3

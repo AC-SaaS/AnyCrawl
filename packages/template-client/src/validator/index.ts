@@ -1,59 +1,74 @@
 import type { TemplateConfig } from "@anycrawl/libs";
 import { TemplateValidationError } from "../errors/index.js";
+import { runInNewContext } from "vm";
+import { DANGEROUS_PATTERNS } from "../constants/security.js";
 
 /**
  * Template Code Validator - Validates template code for security and syntax
  */
 export class TemplateCodeValidator {
+    // Cache for successfully validated templates: Map<templateId, lastValidatedTimestamp>
+    // Key format: templateId -> template's updatedAt timestamp
+    // Only successful validations are cached; failures are never cached
+    private validatedTemplates = new Map<string, number>();
+
     /**
-     * Validate template code
+     * Validate template code with caching
+     * @returns true if validation passes
+     * @throws TemplateValidationError if validation fails
      */
-    async validateCode(code: string, template: TemplateConfig): Promise<void> {
-        // 1. Basic syntax check
-        this.validateSyntax(code);
+    async validateCode(code: string, template: TemplateConfig): Promise<boolean> {
+        const templateId = template.templateId;
 
-        // 2. Security check
+        // Get template's update timestamp
+        const updatedAtRaw = template.updatedAt || template.createdAt || Date.now();
+        const updatedAt = updatedAtRaw instanceof Date ? updatedAtRaw.getTime() : updatedAtRaw;
+
+        // Check if this version is already validated
+        const cachedTimestamp = this.validatedTemplates.get(templateId);
+        if (cachedTimestamp === updatedAt) {
+            // This exact version passed validation before, skip re-validation
+            return true;
+        }
+
+        // Run validations (throws on failure)
+        this.validateSyntax(code, templateId);
         this.validateSecurity(code);
-
-        // 3. Complexity check
         this.validateComplexity(code);
+
+        // All validations passed - cache this version (replaces old version)
+        this.validatedTemplates.set(templateId, updatedAt);
+
+        return true;
     }
 
     /**
-     * Validate JavaScript/TypeScript syntax
+     * Validate JavaScript syntax using VM context (no Script object creation)
      */
-    private validateSyntax(code: string): void {
+    private validateSyntax(code: string, templateId?: string): void {
         try {
-            // Wrap code in async function to allow await syntax, same as sandbox execution
-            const wrappedCode = `
-                (async function() {
-                    ${code}
-                })
-            `;
-            // Basic syntax validation using Function constructor
-            new Function(wrappedCode);
+            // Wrap code in async function (same as sandbox)
+            const wrappedCode = `(async function() { ${code} })`;
+
+            // Use runInNewContext for syntax validation
+            // This compiles the code without executing it (empty sandbox)
+            runInNewContext(wrappedCode, {}, {
+                timeout: 100, // Very short timeout, just for compilation
+                displayErrors: true
+            });
         } catch (error) {
-            throw new TemplateValidationError(`Invalid syntax: ${(error as Error).message}`);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            throw new TemplateValidationError(
+                `Invalid syntax${templateId ? ` in template ${templateId}` : ''}: ${errorMsg}`
+            );
         }
     }
 
     /**
-     * Validate code security
+     * Validate code security using shared security patterns
      */
     private validateSecurity(code: string): void {
-        const dangerousPatterns = [
-            { pattern: /eval\s*\(/g, message: "eval() is not allowed" },
-            { pattern: /Function\s*\(/g, message: "Function constructor is not allowed" },
-            { pattern: /setTimeout\s*\(/g, message: "setTimeout is not allowed" },
-            { pattern: /setInterval\s*\(/g, message: "setInterval is not allowed" },
-            { pattern: /process\./g, message: "process object is not allowed" },
-            { pattern: /require\s*\(/g, message: "require() is not allowed" },
-            { pattern: /import\s+/g, message: "import statements are not allowed" },
-            { pattern: /fs\./g, message: "fs module is not allowed" },
-            { pattern: /child_process/g, message: "child_process module is not allowed" },
-        ];
-
-        for (const { pattern, message } of dangerousPatterns) {
+        for (const { pattern, message } of DANGEROUS_PATTERNS) {
             if (pattern.test(code)) {
                 throw new TemplateValidationError(`Security violation: ${message}`);
             }
@@ -64,13 +79,8 @@ export class TemplateCodeValidator {
      * Validate code complexity
      */
     private validateComplexity(code: string): void {
-        // Check code length
-        if (code.length > 10000) {
-            throw new TemplateValidationError("Code too long (max 10000 characters)");
-        }
-
         // Check nesting depth
-        const maxNestingDepth = 10;
+        const maxNestingDepth = 20;
         let currentDepth = 0;
         let maxDepth = 0;
 

@@ -180,23 +180,6 @@ export class TemplateClient {
     }
 
     /**
-     * Execute default template logic (without custom handlers)
-     */
-    private async executeDefaultTemplate(
-        template: TemplateConfig,
-        context: TemplateExecutionContext
-    ): Promise<any> {
-        // Default implementation - apply scrape options and return processed data
-        return {
-            url: context.request.url,
-            templateId: template.templateId,
-            reqOptions: template.reqOptions,
-            variables: context.variables,
-            timestamp: new Date().toISOString(),
-        };
-    }
-
-    /**
      * Validate domain restrictions for a template and URL
      * @param template - The template configuration
      * @param url - The URL to validate
@@ -263,6 +246,7 @@ export class TemplateClient {
             status: row.status,
             reviewStatus: row.reviewStatus,
             reviewNotes: row.reviewNotes,
+            trusted: row.trusted || false,
             createdAt: new Date(row.createdAt),
             updatedAt: new Date(row.updatedAt),
             publishedAt: row.publishedAt ? new Date(row.publishedAt) : undefined,

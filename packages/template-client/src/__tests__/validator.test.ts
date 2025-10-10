@@ -17,7 +17,7 @@ describe("TemplateCodeValidator", () => {
             tags: ["test"],
             version: "1.0.0",
             pricing: { perCall: 1, currency: "credits" },
-                templateType: "scrape",
+            templateType: "scrape",
             reqOptions: {
                 engine: "cheerio",
                 formats: ["json"],
@@ -31,6 +31,7 @@ describe("TemplateCodeValidator", () => {
             createdBy: "test-user",
             status: "published",
             reviewStatus: "approved",
+            trusted: false,
             createdAt: new Date(),
             updatedAt: new Date(),
         } as TemplateConfig;
@@ -114,7 +115,7 @@ describe("TemplateCodeValidator", () => {
         });
 
         it("should reject code with too much nesting", async () => {
-            const deeplyNestedCode = "{".repeat(15) + "}".repeat(15);
+            const deeplyNestedCode = "{".repeat(25) + "}".repeat(25);
 
             await expect(validator.validateCode(deeplyNestedCode, mockTemplate)).rejects.toThrow("Code nesting too deep");
         });

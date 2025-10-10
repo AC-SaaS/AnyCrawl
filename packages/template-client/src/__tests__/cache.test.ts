@@ -35,6 +35,7 @@ describe("TemplateCache", () => {
             createdBy: "test-user",
             status: "published",
             reviewStatus: "approved",
+            trusted: false,
             createdAt: new Date(),
             updatedAt: new Date(),
         } as TemplateConfig;

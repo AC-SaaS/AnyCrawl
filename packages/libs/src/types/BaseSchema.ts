@@ -91,8 +91,30 @@ export const baseSchema = z.object({
 
     /**
      * The JSON options to be used for extracting structured data
+     * If all nested fields are empty (empty strings or empty schema object),
+     * treat as undefined so the request omits json_options entirely.
      */
-    json_options: jsonOptionsSchema.optional(),
+    json_options: z.preprocess((value) => {
+        if (value == null) return undefined;
+        if (typeof value !== 'object') return value;
+
+        const input = value as any;
+
+        const schemaVal = input.schema;
+        const hasSchema = schemaVal && typeof schemaVal === 'object' && Object.keys(schemaVal).length > 0;
+
+        const userPrompt = typeof input.user_prompt === 'string' ? input.user_prompt.trim() : input.user_prompt;
+        const schemaName = typeof input.schema_name === 'string' ? input.schema_name.trim() : input.schema_name;
+        const schemaDescription = typeof input.schema_description === 'string' ? input.schema_description.trim() : input.schema_description;
+
+        const cleaned: any = {};
+        if (hasSchema) cleaned.schema = schemaVal;
+        if (userPrompt) cleaned.user_prompt = userPrompt;
+        if (schemaName) cleaned.schema_name = schemaName;
+        if (schemaDescription) cleaned.schema_description = schemaDescription;
+
+        return Object.keys(cleaned).length === 0 ? undefined : cleaned;
+    }, jsonOptionsSchema.optional()),
 
     /**
      * The source format to use for JSON extraction (html or markdown)

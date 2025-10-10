@@ -121,6 +121,7 @@ return handleFailedRequest();
             status: "published",
             reviewStatus: "approved",
             reviewNotes: "System created news article scraping template",
+            trusted: false,
             createdAt: new Date(),
             updatedAt: new Date(),
             publishedAt: new Date(),
