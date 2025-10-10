@@ -20,24 +20,33 @@ const scrapeInputSchema: any = (baseSchema as any).pick({
     include_tags: true,
     exclude_tags: true,
     json_options: true,
-    extract_source: true,
 });
 
 // Ensure the local Zod instance is extended (for response schemas below)
 extendZodWithOpenApi(z);
-
-// Use API's jsonOptionsSchema and only override its inner schema field to avoid circular refs
-const jsonOptionsSchemaForDocs = (jsonOptionsSchema as any).extend({
-    schema: z.any().openapi({
-        description: 'JSON Schema specification object (docs-only placeholder to avoid circular refs)'
-    }).optional()
-});
 
 // Local wrapper to safely add OpenAPI metadata even if upstream types are not augmented
 const withOpenApi = (schema: any, meta: any) => {
     const s: any = schema as any;
     return typeof s.openapi === 'function' ? s.openapi(meta) : s;
 };
+
+// Use API's jsonOptionsSchema and override its inner schema field to a non-recursive placeholder to avoid circular refs
+const jsonOptionsSchemaForDocs = (jsonOptionsSchema as any).extend({
+    schema: z.record(z.any()).openapi({
+        description: 'JSON Schema specification object (free-form JSON). Use standard JSON Schema here.'
+    }).optional(),
+    user_prompt: withOpenApi((jsonOptionsSchema as any).shape.user_prompt, {
+        description: 'The user prompt to be used for extracting structured data'
+    }).optional(),
+    schema_name: withOpenApi((jsonOptionsSchema as any).shape.schema_name, {
+        description: 'The name of the schema to be used for extracting structured data'
+    }).optional(),
+    schema_description: withOpenApi((jsonOptionsSchema as any).shape.schema_description, {
+        description: 'The description of the schema to be used for extracting structured data'
+    }).optional(),
+}).optional();
+
 
 // Note: Avoid calling .openapi() directly on imported schemas; use withOpenApi wrapper.
 
@@ -54,8 +63,7 @@ const scrapeSchemaForOpenAPI = withOpenApi(
             example: 'cheerio'
         }),
         proxy: withOpenApi((scrapeInputSchema as any).shape.proxy, {
-            description: 'Proxy URL to route the request through',
-            example: 'http://user:pass@host:port'
+            description: 'Proxy URL to route the request through (e.g., http://user:pass@host:port)'
         }),
         formats: withOpenApi((scrapeInputSchema as any).shape.formats, {
             description: 'Output formats to return',
@@ -76,19 +84,19 @@ const scrapeSchemaForOpenAPI = withOpenApi(
             example: 1000
         }),
         include_tags: withOpenApi((scrapeInputSchema as any).shape.include_tags, {
-            description: 'Only include elements with these CSS selectors'
+            description: 'Only include elements with these CSS selectors',
+            example: []
         }),
         exclude_tags: withOpenApi((scrapeInputSchema as any).shape.exclude_tags, {
-            description: 'Exclude elements with these CSS selectors'
-        }),
-        extract_source: withOpenApi((scrapeInputSchema as any).shape.extract_source, {
-            description: 'The source format to use for JSON extraction (html or markdown), default is markdown',
-            example: 'markdown'
+            description: 'Exclude elements with these CSS selectors',
+            example: []
         }),
         // Override to avoid circularly-referenced JSON schema
-        json_options: (jsonOptionsSchemaForDocs as any).optional()
+        json_options: withOpenApi((jsonOptionsSchemaForDocs as any).optional(), {
+            description: 'Advanced: JSON extraction options (optional). Leave empty to omit from request.'
+        })
     }),
-    { description: 'Request schema for web scraping' }
+    { description: 'Request schema for web scraping', example: { url: 'https://example.com', "engine": "cheerio", "formats": ["markdown"] } }
 );
 
 // Centralized docs-safe scrape options (without engine) to reuse across endpoints
@@ -106,8 +114,7 @@ const scrapeOptionsForOpenAPI: any = (() => {
     return withOpenApi(
         (picked as any).extend({
             proxy: withOpenApi((picked as any).shape.proxy, {
-                description: 'Proxy URL to route the request through',
-                example: 'http://user:pass@host:port'
+                description: 'Proxy URL to route the request through (e.g., http://user:pass@host:port)'
             }),
             formats: withOpenApi((picked as any).shape.formats, {
                 description: 'Output formats to return',
@@ -123,12 +130,16 @@ const scrapeOptionsForOpenAPI: any = (() => {
                 example: 1000
             }),
             include_tags: withOpenApi((picked as any).shape.include_tags, {
-                description: 'Only include elements with these CSS selectors'
+                description: 'Only include elements with these CSS selectors',
+                example: []
             }),
             exclude_tags: withOpenApi((picked as any).shape.exclude_tags, {
-                description: 'Exclude elements with these CSS selectors'
+                description: 'Exclude elements with these CSS selectors',
+                example: []
             }),
-            json_options: (jsonOptionsSchemaForDocs as any).optional(),
+            json_options: withOpenApi((jsonOptionsSchemaForDocs as any).optional(), {
+                description: 'Advanced: JSON extraction options (optional). Leave empty to omit from request.'
+            }),
         }).partial(),
         { description: 'Per-URL scraping options used during enrichment and crawling' }
     );
@@ -187,7 +198,7 @@ const searchSchemaForOpenAPI = withOpenApi(
             }
         )
     }),
-    { description: 'Request schema for web search' }
+    { description: 'Request schema for web search', example: { engine: 'google', query: 'OpenAI ChatGPT', limit: 10, offset: 0, pages: 1 } }
 );
 
 // scrapeOptionsForOpenAPI defined above
@@ -196,12 +207,15 @@ const searchSchemaForOpenAPI = withOpenApi(
 // then override only json_options to avoid circular refs in docs
 const crawlInputFromApi: any = (crawlSchema as any)?._def?.schema ?? (crawlSchema as any)?._def?.innerType ?? crawlSchema;
 
-const crawlInputSchema: any = (crawlInputFromApi as any).extend({
-    // Top-level json_options may exist via baseSchema inheritance; override to docs-safe
-    json_options: jsonOptionsSchemaForDocs.optional(),
-    // Nested scrape options (partial of scrape input sans retry)
-    scrape_options: scrapeOptionsForOpenAPI.optional(),
-});
+// Reuse the library's crawl input schema and omit template-only fields for normal mode docs
+const crawlInputSchema: any = (crawlInputFromApi as any)
+    .omit({ template_id: true, variables: true })
+    .extend({
+        // Override json_options to docs-safe version
+        json_options: jsonOptionsSchemaForDocs.optional(),
+        // Nested scrape options (partial of scrape input sans retry)
+        scrape_options: scrapeOptionsForOpenAPI.optional(),
+    });
 
 const crawlSchemaForOpenAPI = withOpenApi(
     (crawlInputSchema as any).extend({
@@ -241,7 +255,7 @@ const crawlSchemaForOpenAPI = withOpenApi(
             description: 'Per-page scraping options applied during crawling'
         })
     }),
-    { description: 'Request schema for site crawling' }
+    { description: 'Request schema for site crawling', example: { url: 'https://anycrawl.dev', engine: 'cheerio' } }
 );
 
 // Success Response Schemas
@@ -923,9 +937,46 @@ const document = createDocument({
 
 // Write generated OpenAPI document to file
 const outputPath = join(process.cwd(), 'openapi.json');
+const templateOutputPath = join(process.cwd(), 'openapi.template.json');
 
 try {
     writeFileSync(outputPath, JSON.stringify(document, null, 2));
+
+    // Build template-only OpenAPI by cloning and overriding request schemas to template mode
+    const templateDoc: any = JSON.parse(JSON.stringify(document));
+    const ensure = (p: string, method: 'post') => (templateDoc.paths as any)?.[p]?.[method]?.requestBody?.content?.['application/json'];
+
+    // Scrape and Crawl template schema: template_id + variables + url (optional)
+    const makeScrapeOrCrawlTemplateSchema = (desc: string) => ({
+        type: 'object',
+        additionalProperties: false,
+        required: ['template_id'],
+        properties: {
+            template_id: { type: 'string', description: 'Template ID to use' },
+            variables: { type: 'object', additionalProperties: {}, description: 'Template variables' },
+            url: { type: 'string', format: 'uri', description: 'Optional URL when using template' },
+        },
+        description: desc,
+    });
+
+    // Search template schema: template_id + variables + query (optional)
+    const makeSearchTemplateSchema = (desc: string) => ({
+        type: 'object',
+        additionalProperties: false,
+        required: ['template_id'],
+        properties: {
+            template_id: { type: 'string', description: 'Template ID to use' },
+            variables: { type: 'object', additionalProperties: {}, description: 'Template variables' },
+            query: { type: 'string', description: 'Optional search query when using template' },
+        },
+        description: desc,
+    });
+
+    const s = ensure('/v1/scrape', 'post'); if (s) s.schema = makeScrapeOrCrawlTemplateSchema('Template scrape mode');
+    const c = ensure('/v1/crawl', 'post'); if (c) c.schema = makeScrapeOrCrawlTemplateSchema('Template crawl mode');
+    const q = ensure('/v1/search', 'post'); if (q) q.schema = makeSearchTemplateSchema('Template search mode');
+
+    writeFileSync(templateOutputPath, JSON.stringify(templateDoc, null, 2));
 
     console.log('🎉 OpenAPI specification generated successfully!');
     console.log(`📁 File location: ${outputPath}`);

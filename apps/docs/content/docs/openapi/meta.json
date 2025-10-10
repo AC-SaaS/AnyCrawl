@@ -1,6 +1,6 @@
 {
-    "title": "OpenAPI Example",
-    "description": "A demo for Fumadocs OpenAPI",
+    "title": "OpenAPI",
+    "description": "A demo for AnyCrawl OpenAPI",
     "root": true,
     "icon": "Play",
     "pages": ["...(generated)"]
