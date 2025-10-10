@@ -47,7 +47,8 @@ RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --frozen-lo
 
 # Copy source code and build dependencies first
 COPY . .
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai --filter=@anycrawl/template-client
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db
+RUN pnpm build --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai --filter=@anycrawl/template-client
 RUN pnpm build --filter=api
 
 # Remove dev dependencies
