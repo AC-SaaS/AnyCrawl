@@ -51,7 +51,11 @@ COPY packages/eslint-config/ ./packages/eslint-config/
 
 # Copy source code and build dependencies first
 COPY . .
-RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape --filter=@anycrawl/search --filter=@anycrawl/ai
+# Build base libraries and scrape first (template-client depends on scrape's build output)
+RUN pnpm build --filter=@anycrawl/libs --filter=@anycrawl/db --filter=@anycrawl/scrape
+# Build remaining packages (search, ai depend on scrape)
+RUN pnpm build --filter=@anycrawl/search --filter=@anycrawl/ai
+# Build API
 RUN pnpm build --filter=api
 
 # Remove dev dependencies
