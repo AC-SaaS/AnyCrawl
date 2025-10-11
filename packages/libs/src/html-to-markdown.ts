@@ -23,8 +23,20 @@ export function htmlToMarkdown(html: string): string {
     // Override the default paragraph rule to reduce spacing
     turndownService.addRule('paragraphs', {
         filter: 'p',
-        replacement: function (content: string) {
-            return '\n\n' + content.trim() + '\n\n';
+        replacement: function (content: string, node: Node) {
+            const trimmed = content.trim();
+            if (!trimmed) return '';
+
+            // Render inline if paragraph is inside an anchor to avoid line breaks inside links
+            let cursor: any = node as any;
+            while (cursor) {
+                if (cursor.nodeName === 'A') {
+                    return trimmed;
+                }
+                cursor = cursor.parentNode as any;
+            }
+
+            return '\n\n' + trimmed + '\n\n';
         }
     });
 
@@ -39,12 +51,20 @@ export function htmlToMarkdown(html: string): string {
             const element = node as HTMLElement;
             const hasBlockElements = element.querySelector('p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre');
 
+            // If inside an anchor, render inline to avoid line breaks inside links
+            let cursor: any = node as any;
+            while (cursor) {
+                if (cursor.nodeName === 'A') {
+                    return trimmedContent;
+                }
+                cursor = cursor.parentNode as any;
+            }
+
             if (hasBlockElements) {
                 return '\n\n' + trimmedContent + '\n\n';
-            } else {
-                // Treat as inline, add space if needed
-                return trimmedContent + ' ';
             }
+            // Treat as inline, add space if needed
+            return trimmedContent + ' ';
         }
     });
 
@@ -168,12 +188,26 @@ export function htmlToMarkdown(html: string): string {
         return output;
     }
 
+    // Collapse excessive whitespace/newlines inside markdown link brackets
+    function normalizeLinkTextWhitespace(input: string): string {
+        return input.replace(/\[\s*([\s\S]*?)\s*\]\(([^\)]+)\)/g, (_m: string, linkText: string, parens: string) => {
+            // Replace internal newlines/tabs with single spaces and collapse multiple spaces
+            const cleaned = linkText
+                .replace(/[\t\r\n]+/g, ' ')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+            return `[${cleaned}](${parens})`;
+        });
+    }
+
+
     // Convert and clean up the result
     let markdown = turndownService.turndown(html);
     markdown = normalizeBracketWrappedImages(markdown);
+    markdown = normalizeLinkTextWhitespace(markdown);
 
-    // Aggressive post-processing
-    markdown = markdown.trim();
+    // Collapse 3+ blank lines to at most 2 and trim
+    markdown = markdown.replace(/\n{3,}/g, '\n\n').trim();
 
     return markdown;
 }
