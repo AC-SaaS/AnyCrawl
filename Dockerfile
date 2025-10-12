@@ -127,6 +127,7 @@ COPY --from=migration /usr/src/app/packages/db/drizzle.config.ts ./packages/db/
 # Copy API app
 COPY --from=build /usr/src/app/apps/api/dist ./apps/api/dist
 COPY --from=build /usr/src/app/apps/api/package.json ./apps/api/
+COPY --from=build /usr/src/app/apps/api/scripts/run-generate-api-key.mjs ./apps/api/scripts/
 
 # Install production dependencies
 RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store pnpm install --prod --frozen-lockfile
