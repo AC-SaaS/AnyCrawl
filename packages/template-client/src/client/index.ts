@@ -41,8 +41,8 @@ export class TemplateClient {
         await this.dbReady;
         // 1. Check cache first
         let template = await this.cache.get(templateId);
-
-        if (!template) {
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        if (!template && !isDevelopment) {
             // 2. Get from database
             const result = await this.db
                 .select()
