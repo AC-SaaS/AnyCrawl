@@ -24,9 +24,11 @@ export class TemplateCodeValidator {
         const updatedAtRaw = template.updatedAt || template.createdAt || Date.now();
         const updatedAt = updatedAtRaw instanceof Date ? updatedAtRaw.getTime() : updatedAtRaw;
 
-        // Check if this version is already validated
+        const isDevelopment = process.env.NODE_ENV === 'development';
+
+        // Check if this version is already validated (disabled in development)
         const cachedTimestamp = this.validatedTemplates.get(templateId);
-        if (cachedTimestamp === updatedAt) {
+        if (!isDevelopment && cachedTimestamp === updatedAt) {
             // This exact version passed validation before, skip re-validation
             return true;
         }
