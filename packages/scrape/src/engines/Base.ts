@@ -520,7 +520,52 @@ export abstract class BaseEngine {
             });
 
             try {
-                // check if wait_for is set, and it is browser engine
+                // First, handle wait_for_selector if provided (browser-only)
+                const waitForSelector = context.request.userData.options?.wait_for_selector;
+                if (waitForSelector !== undefined) {
+                    try {
+                        log.info(`[wait_for_selector] received value type=${typeof waitForSelector} raw=${(() => { try { return JSON.stringify(waitForSelector); } catch { return String(waitForSelector); } })()}`);
+                    } catch { /* ignore */ }
+                }
+                if (waitForSelector) {
+                    if ((context as any).page) {
+                        const page: any = (context as any).page;
+                        let selector: string | undefined;
+                        let timeout: number | undefined;
+                        let state: any | undefined;
+                        if (typeof waitForSelector === 'string') {
+                            selector = waitForSelector;
+                            state = 'visible';
+                        } else if (typeof waitForSelector === 'object' && waitForSelector.selector) {
+                            selector = waitForSelector.selector;
+                            timeout = waitForSelector.timeout;
+                            state = waitForSelector.state ?? 'visible';
+                        }
+                        if (selector) {
+                            log.debug(`Waiting for selector '${selector}' (state=${state}${timeout ? `, timeout=${timeout}ms` : ''}) at ${context.request.url}`);
+                            // Playwright-style API supports { state }
+                            // Puppeteer supports options.visible/hidden; approximate mapping
+                            if (typeof page.waitForSelector === 'function') {
+                                try {
+                                    // Detect Puppeteer vs Playwright by argument shape support is non-trivial; try Playwright signature first
+                                    await page.waitForSelector(selector, (state === 'attached' || state === 'detached')
+                                        ? { timeout }
+                                        : { state, timeout });
+                                } catch (err) {
+                                    // Fallback to Puppeteer mapping
+                                    const opts: any = { timeout };
+                                    if (state === 'visible') opts.visible = true;
+                                    if (state === 'hidden' || state === 'detached') opts.hidden = true;
+                                    await page.waitForSelector(selector, opts);
+                                }
+                            }
+                        }
+                    } else {
+                        log.warning(`'wait_for_selector' is ignored for non-browser crawlers. URL: ${context.request.url}`);
+                    }
+                }
+
+                // Then handle wait_for seconds (browser-only)
                 if (context.request.userData.options?.wait_for) {
                     if (context.page) {
                         log.debug(`Waiting for ${context.request.userData.options.wait_for} seconds for ${context.request.url}`);

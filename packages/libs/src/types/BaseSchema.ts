@@ -75,6 +75,21 @@ export const baseSchema = z.object({
     wait_for: z.number().min(1).max(60_000).optional(),
 
     /**
+     * The selector to wait for in browser engines. String or object form.
+     * Only effective for Playwright/Puppeteer; ignored for Cheerio.
+     */
+    wait_for_selector: z
+        .union([
+            z.string(),
+            z.object({
+                selector: z.string(),
+                timeout: z.number().min(1).max(120000).optional(),
+                state: z.enum(["attached", "visible", "hidden", "detached"]).optional(),
+            }).strict(),
+        ])
+        .optional(),
+
+    /**
      * The retry to be used
      */
     retry: z.boolean().default(false),
