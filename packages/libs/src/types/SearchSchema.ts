@@ -10,6 +10,7 @@ const scrapeOptionsInputSchema = baseSchema
         formats: true,
         timeout: true,
         wait_for: true,
+        wait_for_selector: true,
         include_tags: true,
         exclude_tags: true,
         json_options: true,

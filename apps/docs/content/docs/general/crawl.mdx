@@ -134,30 +134,31 @@ curl -X DELETE -H "Authorization: Bearer <YOUR_API_KEY>" \
 
 ## Request Parameters
 
-| Parameter        | Type            | Required | Default       | Description                                                                                                        |
-| ---------------- | --------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `url`            | string          | Yes      | -             | Seed URL to start crawling                                                                                         |
-| `engine`         | enum            | No       | `cheerio`     | Per-page scraping engine: `cheerio`, `playwright`, `puppeteer`                                                     |
-| `exclude_paths`  | array of string | No       | -             | Path rules to exclude (glob-like), e.g. `/blog/*`                                                                  |
-| `include_paths`  | array of string | No       | -             | Path rules to include (applied after exclusion)                                                                    |
-| `max_depth`      | number          | No       | `10`          | Max depth from the seed URL                                                                                        |
-| `strategy`       | enum            | No       | `same-domain` | Crawl scope: `all`, `same-domain`, `same-hostname`, `same-origin`                                                  |
-| `limit`          | number          | No       | `100`         | Maximum number of pages to crawl                                                                                   |
-| `scrape_options` | object          | No       | -             | Per-page scrape options (almost the same as `/v1/scrape` request, but without `url` and `engine` at the top level) |
+| Parameter        | Type            | Required | Default       | Description                                                                              |
+| ---------------- | --------------- | -------- | ------------- | ---------------------------------------------------------------------------------------- |
+| `url`            | string          | Yes      | -             | Seed URL to start crawling                                                               |
+| `engine`         | enum            | No       | `cheerio`     | Per-page scraping engine: `cheerio`, `playwright`, `puppeteer`                           |
+| `exclude_paths`  | array of string | No       | -             | Path rules to exclude (glob-like), e.g. `/blog/*`                                        |
+| `include_paths`  | array of string | No       | -             | Path rules to include (applied after exclusion)                                          |
+| `max_depth`      | number          | No       | `10`          | Max depth from the seed URL                                                              |
+| `strategy`       | enum            | No       | `same-domain` | Crawl scope: `all`, `same-domain`, `same-hostname`, `same-origin`                        |
+| `limit`          | number          | No       | `100`         | Maximum number of pages to crawl                                                         |
+| `scrape_options` | object          | No       | -             | Per-page scrape options (same fields as `/v1/scrape` excluding top-level `url`/`engine`) |
 
 ### `scrape_options` fields
 
-| Field            | Type            | Default        | Notes                                                                                              |
-| ---------------- | --------------- | -------------- | -------------------------------------------------------------------------------------------------- |
-| `formats`        | array of enum   | `["markdown"]` | Output formats: `markdown`, `html`, `text`, `screenshot`, `screenshot@fullPage`, `rawHtml`, `json` |
-| `timeout`        | number          | `60000`        | Per-request timeout (ms)                                                                           |
-| `retry`          | boolean         | `false`        | Whether to retry on failure                                                                        |
-| `wait_for`       | number          | -              | Delay before extraction (ms)                                                                       |
-| `include_tags`   | array of string | -              | Only include elements that match CSS selectors                                                     |
-| `exclude_tags`   | array of string | -              | Exclude elements that match CSS selectors                                                          |
-| `proxy`          | string (URI)    | -              | Optional proxy URL                                                                                 |
-| `json_options`   | object          | -              | Options for structured JSON extraction (schema, user_prompt, schema_name, schema_description)      |
-| `extract_source` | enum            | `markdown`     | Source to extract JSON from: `markdown` (default) or `html`                                        |
+| Field               | Type             | Default        | Notes                                                                                                                                  |
+| ------------------- | ---------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------- | ---------------------------------------------------------------- |
+| `formats`           | array of enum    | `["markdown"]` | Output formats: `markdown`, `html`, `text`, `screenshot`, `screenshot@fullPage`, `rawHtml`, `json`                                     |
+| `timeout`           | number           | `60000`        | Per-request timeout (ms)                                                                                                               |
+| `retry`             | boolean          | `false`        | Whether to retry on failure                                                                                                            |
+| `wait_for`          | number           | -              | Delay before extraction (ms); browser engines only; lower priority than `wait_for_selector`                                            |
+| `wait_for_selector` | string or object | -              | Wait for a specific selector (browser engines only). String form is CSS selector; object form: `{ selector: string, state?: "attached" | "visible" | "hidden" | "detached", timeout?: number }`. Takes priority over `wait_for`. |
+| `include_tags`      | array of string  | -              | Only include elements that match CSS selectors                                                                                         |
+| `exclude_tags`      | array of string  | -              | Exclude elements that match CSS selectors                                                                                              |
+| `proxy`             | string (URI)     | -              | Optional proxy URL                                                                                                                     |
+| `json_options`      | object           | -              | Options for structured JSON extraction (schema, user_prompt, schema_name, schema_description)                                          |
+| `extract_source`    | enum             | `markdown`     | Source to extract JSON from: `markdown` (default) or `html`                                                                            |
 
 ## Response Format
 
