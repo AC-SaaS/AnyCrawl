@@ -6,6 +6,7 @@ import { cancelJob, createJob, failedJob, getJob, getJobResultsPaginated, getJob
 import { log } from "@anycrawl/libs";
 import { TemplateHandler } from "../../utils/templateHandler.js";
 import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
+import { renderUrlTemplate } from "../../utils/urlTemplate.js";
 
 export class CrawlController {
     /**
@@ -35,6 +36,13 @@ export class CrawlController {
                 // Remove template field before schema validation (schemas use strict mode)
                 delete requestData.template;
             }
+
+            // Render URL template with variables before validation
+            try {
+                if (requestData && typeof requestData.url === "string") {
+                    requestData.url = renderUrlTemplate(requestData.url, requestData.variables);
+                }
+            } catch { /* ignore render errors; schema will validate later */ }
 
             // Validate and parse the merged data
             const jobPayload = crawlSchema.parse(requestData);
