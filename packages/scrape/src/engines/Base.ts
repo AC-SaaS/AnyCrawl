@@ -543,20 +543,24 @@ export abstract class BaseEngine {
                         }
                         if (selector) {
                             log.debug(`Waiting for selector '${selector}' (state=${state}${timeout ? `, timeout=${timeout}ms` : ''}) at ${context.request.url}`);
-                            // Playwright-style API supports { state }
-                            // Puppeteer supports options.visible/hidden; approximate mapping
+                            // Use engine-specific signature to avoid duplicate waits
                             if (typeof page.waitForSelector === 'function') {
+                                const engineName = this.constructor.name.toLowerCase();
                                 try {
-                                    // Detect Puppeteer vs Playwright by argument shape support is non-trivial; try Playwright signature first
-                                    await page.waitForSelector(selector, (state === 'attached' || state === 'detached')
-                                        ? { timeout }
-                                        : { state, timeout });
+                                    if (engineName.includes('playwright')) {
+                                        await page.waitForSelector(selector, { state, timeout });
+                                    } else if (engineName.includes('puppeteer')) {
+                                        const opts: any = { timeout };
+                                        if (state === 'visible') opts.visible = true;
+                                        if (state === 'hidden' || state === 'detached') opts.hidden = true;
+                                        await page.waitForSelector(selector, opts);
+                                    } else {
+                                        // Unknown engine: safest minimal wait
+                                        await page.waitForSelector(selector, { timeout });
+                                    }
                                 } catch (err) {
-                                    // Fallback to Puppeteer mapping
-                                    const opts: any = { timeout };
-                                    if (state === 'visible') opts.visible = true;
-                                    if (state === 'hidden' || state === 'detached') opts.hidden = true;
-                                    await page.waitForSelector(selector, opts);
+                                    // Make wait non-blocking: log and continue
+                                    log.warning(`[wait_for_selector] Failed for selector '${selector}' at ${context.request.url}: ${err instanceof Error ? err.message : String(err)}`);
                                 }
                             }
                         }

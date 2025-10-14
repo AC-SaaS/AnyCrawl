@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.5] - 2025-10-14
+
+### Added
+
+- Introduced template rendering utilities `renderUrlTemplate` and `renderTextTemplate` with filter support (`raw`, `query`, `path`, `host`) and placeholder escaping
+
+### Changed
+
+- `SearchController`: render `query` from template variables; enrich search results with scrape data and prefix screenshot paths with public domain route
+- Improved job progress accounting to include scrape tasks; refined credit calculation to include JSON extraction credits and template per-call price
+- Logging: safer response header serialization and tolerant JSON parsing in `LogMiddleware`; skip `/health`
+
 ## [1.0.0-beta.3] - 2025-10-12
 
 ### Changed

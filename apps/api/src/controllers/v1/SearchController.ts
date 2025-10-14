@@ -8,6 +8,7 @@ import { STATUS, createJob, insertJobResult, completedJob, failedJob, updateJobC
 import { QueueManager } from "@anycrawl/scrape";
 import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
 import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
+import { renderTextTemplate } from "../../utils/urlTemplate.js";
 export class SearchController {
     private searchService: SearchService;
 
@@ -54,6 +55,13 @@ export class SearchController {
                 // Remove template field before schema validation (schemas use strict mode)
                 delete requestData.template;
             }
+
+            // Render query template (filters treated as raw for search)
+            try {
+                if (requestData && typeof requestData.query === "string") {
+                    requestData.query = renderTextTemplate(requestData.query, requestData.variables);
+                }
+            } catch { /* ignore render errors; schema will validate later */ }
 
             // Validate and parse the merged data
             const validatedData = searchSchema.parse(requestData);

@@ -291,6 +291,7 @@ export class EngineConfigurator {
                 'ERR_PROXY_CONNECTION_FAILED',
                 'ERR_TUNNEL_CONNECTION_FAILED',
                 'ERR_PROXY_AUTH_FAILED',
+                'ERR_NEED_TO_RETRY',
                 'ERR_SOCKS_CONNECTION_FAILED'
             ];
 

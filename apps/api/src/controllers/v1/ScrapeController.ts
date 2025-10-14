@@ -6,6 +6,7 @@ import { STATUS, createJob, failedJob } from "@anycrawl/db";
 import { log } from "@anycrawl/libs";
 import { TemplateHandler, TemplateVariableMapper } from "../../utils/templateHandler.js";
 import { validateTemplateOnlyFields } from "../../utils/templateValidator.js";
+import { renderUrlTemplate } from "../../utils/urlTemplate.js";
 export class ScrapeController {
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
@@ -32,6 +33,13 @@ export class ScrapeController {
                 // Remove template field before schema validation (schemas use strict mode)
                 delete requestData.template;
             }
+
+            // Render URL template with variables before validation
+            try {
+                if (requestData && typeof requestData.url === "string") {
+                    requestData.url = renderUrlTemplate(requestData.url, requestData.variables);
+                }
+            } catch { /* ignore render errors; schema will validate later */ }
 
             // Validate and parse the merged data
             const jobPayload = scrapeSchema.parse(requestData);

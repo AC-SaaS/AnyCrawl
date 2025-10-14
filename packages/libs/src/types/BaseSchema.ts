@@ -67,7 +67,7 @@ export const baseSchema = z.object({
     /**
      * The timeout to be used
      */
-    timeout: z.number().min(1000).max(600_000).default(300_000),
+    timeout: z.number().min(1000).max(600_000).default(60_000),
 
     /**
      * The wait for to be used
