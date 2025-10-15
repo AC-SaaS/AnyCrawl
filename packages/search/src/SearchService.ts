@@ -1,26 +1,115 @@
 import { SearchEngine, SearchOptions, SearchResult, SearchTask } from "./engines/types.js";
 import { GoogleSearchEngine } from "./engines/Google.js";
-import { Utils, CrawlingContext, Engine, EngineFactoryRegistry } from "@anycrawl/scrape";
-import { randomUUID } from "node:crypto";
+import { SearxngSearchEngine } from "./engines/Searxng.js";
+// @ts-ignore - NodeNext resolution for .js import of TS source
+import { ACSearchEngine } from "./engines/ACEngine.js";
+import { HttpClient } from "@anycrawl/scrape";
 import { log } from "@anycrawl/libs";
+import { AVAILABLE_SEARCH_ENGINES } from "@anycrawl/libs/constants";
+
+export interface SearchServiceConfig {
+    defaultEngine?: string; // Default search engine name (e.g., 'google', 'searxng')
+    enabledEngines?: string[]; // List of enabled engines
+    searxngUrl?: string; // SearXNG instance URL
+    acEngineUrl?: string; // AC Engine instance URL
+}
 
 export class SearchService {
     private engines: Map<string, SearchEngine>;
-    private requestsToResponses: Map<string, (results: SearchResult[]) => void>;
-    private partialResults: Map<string, SearchResult[]>;
-    private pendingRequests: Map<string, number>;
-    private crawler: Engine | null = null;
-    private searchQueue: any | null = null;
-    private requestsToOnPage: Map<string, (page: number, results: SearchResult[], uniqueKey: string, success: boolean) => void>;
-    private requestsToLimit: Map<string, number | undefined>;
+    private config: SearchServiceConfig;
 
-    constructor() {
+    constructor(config: SearchServiceConfig = {}) {
         this.engines = new Map();
-        this.requestsToResponses = new Map();
-        this.partialResults = new Map();
-        this.pendingRequests = new Map();
-        this.requestsToOnPage = new Map();
-        this.requestsToLimit = new Map();
+
+        // Load config from environment variables with defaults
+        this.config = {
+            defaultEngine: config.defaultEngine || process.env.ANYCRAWL_SEARCH_DEFAULT_ENGINE,
+            enabledEngines: config.enabledEngines || process.env.ANYCRAWL_SEARCH_ENABLED_ENGINES?.split(',').map(e => e.trim()),
+            searxngUrl: config.searxngUrl || process.env.ANYCRAWL_SEARXNG_URL,
+            acEngineUrl: config.acEngineUrl || process.env.ANYCRAWL_AC_ENGINE_URL,
+        };
+
+        log.info(`SearchService initialized with config:`, this.config);
+
+        // Log available engines
+        const availableEngines = this.getAvailableEngines();
+        log.info(`Available search engines: ${availableEngines.join(', ')}`);
+
+        // Warn if no engines are available
+        if (availableEngines.length === 0) {
+            log.error('No search engines are available! Please configure at least one engine.');
+        }
+    }
+
+    /**
+     * Get the default engine name (ensures it's available)
+     * @returns The default engine name, falling back to first available engine if needed
+     */
+    getDefaultEngine(): string {
+        const requestedDefault = this.config.defaultEngine || 'google';
+
+        // Check if requested default is available
+        if (this.isValidEngine(requestedDefault)) {
+            return requestedDefault;
+        }
+
+        // Fall back to first available engine
+        const availableEngines = this.getAvailableEngines();
+        if (availableEngines.length === 0) {
+            log.error('No search engines are available! Falling back to google (may fail)');
+            return 'google';
+        }
+
+        const fallbackEngine = availableEngines[0]!;
+        log.error(`Configured default engine "${requestedDefault}" is not available, using: ${fallbackEngine}`);
+        return fallbackEngine;
+    }
+
+    /**
+     * Check if engine name is valid and available (based on configuration)
+     * @param name - Engine name to check
+     * @returns true if engine is valid and has required configuration
+     */
+    private isValidEngine(name: string): boolean {
+        const normalized = name.toLowerCase();
+
+        switch (normalized) {
+            case 'google':
+                // Google is always available (no special config needed)
+                return true;
+            case 'searxng':
+                // SearXNG requires URL configuration
+                return Boolean(this.config.searxngUrl);
+            case 'ac-engine':
+                // AC Engine requires URL configuration
+                return Boolean(this.config.acEngineUrl);
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Get list of available engines based on configuration
+     * @returns Array of available engine names
+     */
+    public getAvailableEngines(): string[] {
+        const knownEngines = Array.from(AVAILABLE_SEARCH_ENGINES);
+        const candidateEngines = (this.config.enabledEngines && this.config.enabledEngines.length > 0)
+            ? this.config.enabledEngines.map(e => e.toLowerCase()).filter(e => knownEngines.includes(e as any))
+            : knownEngines as string[];
+        return candidateEngines.filter(engine => this.isValidEngine(engine));
+    }
+
+    /**
+     * Resolve engine name - public method for external use
+     * @param requestedEngine - The engine name requested (can be undefined, empty, 'default', or invalid)
+     * @returns The actual engine name that will be used
+     */
+    public resolveEngine(requestedEngine?: string): string {
+        if (!requestedEngine) {
+            return this.getDefaultEngine();
+        }
+        return this.resolveEngineName(requestedEngine);
     }
 
     private createEngine(name: string): SearchEngine {
@@ -28,225 +117,178 @@ export class SearchService {
         switch (name) {
             case "google":
                 return new GoogleSearchEngine();
+            case "searxng":
+                if (!this.config.searxngUrl) {
+                    throw new Error(`SearXNG engine is not available: ANYCRAWL_SEARXNG_URL is not configured`);
+                }
+                return new SearxngSearchEngine(this.config.searxngUrl);
+            case "ac-engine":
+                if (!this.config.acEngineUrl) {
+                    throw new Error(`AC Engine is not available: ANYCRAWL_AC_ENGINE_URL is not configured`);
+                }
+                return new ACSearchEngine(this.config.acEngineUrl);
             default:
                 throw new Error(`Unknown engine type: ${name}`);
         }
     }
 
+    /**
+     * Resolve the actual engine name to use based on configuration
+     * @param requestedEngine - The engine name requested by the user (can be empty, 'default', or invalid)
+     * @returns The actual engine name to use
+     */
+    private resolveEngineName(requestedEngine: string): string {
+        const normalizedEngine = requestedEngine.toLowerCase().trim();
+
+        // If requested engine is empty, 'default', or not available, use default engine
+        if (!normalizedEngine || normalizedEngine === 'default' || !this.isValidEngine(normalizedEngine)) {
+            const defaultEngine = this.getDefaultEngine();
+            if (normalizedEngine && normalizedEngine !== 'default' && normalizedEngine !== '') {
+                const reason = !this.isValidEngine(normalizedEngine)
+                    ? 'not available (check URL configuration)'
+                    : 'invalid';
+                log.info(`Engine "${requestedEngine}" is ${reason}, using default: ${defaultEngine}`);
+            }
+            return defaultEngine;
+        }
+
+        // If there's a default engine configured
+        if (this.config.defaultEngine) {
+            // If enabled engines list exists
+            if (this.config.enabledEngines && this.config.enabledEngines.length > 0) {
+                // If only one engine is enabled, always use it (ignore requested engine)
+                if (this.config.enabledEngines.length === 1) {
+                    const singleEngine = this.config.enabledEngines[0]!; // Safe: we just checked length === 1
+                    log.info(`Single engine mode: forcing use of ${singleEngine} (requested: ${requestedEngine})`);
+                    return singleEngine;
+                }
+
+                // Multiple engines enabled: use requested if it's in the enabled list, otherwise use default
+                if (this.config.enabledEngines.includes(normalizedEngine)) {
+                    return normalizedEngine;
+                } else {
+                    log.info(`Requested engine ${requestedEngine} not in enabled list, using default: ${this.config.defaultEngine}`);
+                    return this.config.defaultEngine.toLowerCase();
+                }
+            }
+        }
+
+        // Use the validated requested engine
+        return normalizedEngine;
+    }
+
     getEngine(name: string): SearchEngine {
-        let engine = this.engines.get(name);
+        const actualName = this.resolveEngineName(name);
+        let engine = this.engines.get(actualName);
         if (!engine) {
-            engine = this.createEngine(name);
-            this.engines.set(name, engine);
+            engine = this.createEngine(actualName);
+            this.engines.set(actualName, engine);
         }
         return engine;
     }
 
     /**
-     * Initialize the crawler
-     * @returns {Promise<void>}
+     * Execute search using HttpClient
+     * @param engineName - The search engine name (optional, uses default if not provided)
+     * @param options - Search options
+     * @param onPage - Optional callback for each page of results
+     * @returns Promise resolving to search results
      */
-    public async initializeCrawler() {
-        if (!this.crawler) {
-            log.info("Initializing crawler...");
-            this.searchQueue = await Utils.getInstance().getQueue("AnyCrawl_Search");
-            this.crawler = await EngineFactoryRegistry.createEngine('cheerio',
-                this.searchQueue,
-                {
-                    keepAlive: true,
-                    requestHandler: async (context: CrawlingContext) => {
-                        log.info(`Request handler called for: ${context.request.url}`);
-                        try {
-                            const { request, body } = context as { request: any; body: Buffer };
-                            const html = body.toString("utf-8");
-                            log.info(`HTML content: ${html.substring(0, 200)}...`);
-                            const uniqueKey = request.userData.uniqueKey;
-                            log.info(`Processing request with uniqueKey: ${uniqueKey}`);
-
-                            const engine = this.getEngine(request.userData.engineName);
-                            log.info(`HTML content length: ${html.length}`);
-
-                            const results = await engine.parse(html, request);
-                            log.info(`Parsed results: ${results.length}`);
-
-                            const pageNumber = request.userData.page ?? 1;
-
-                            // Per-page callback
-                            const onPageCb = this.requestsToOnPage.get(uniqueKey);
-                            if (onPageCb) onPageCb(pageNumber, results, uniqueKey, true);
-
-                            // Accumulate results
-                            const currentResults = this.partialResults.get(uniqueKey) || [];
-                            this.partialResults.set(uniqueKey, [...currentResults, ...results]);
-
-                            // Decrement pending requests
-                            const pendingCount = this.pendingRequests.get(uniqueKey) || 0;
-                            const newPendingCount = pendingCount - 1;
-                            this.pendingRequests.set(uniqueKey, newPendingCount);
-
-                            // If all requests are complete, resolve with accumulated results
-                            if (newPendingCount === 0) {
-                                const callback = this.requestsToResponses.get(uniqueKey);
-                                if (callback) {
-                                    log.info(`All requests complete for uniqueKey: ${uniqueKey}`);
-                                    const limit = this.requestsToLimit.get(uniqueKey);
-                                    const aggregated = this.partialResults.get(uniqueKey) || [];
-                                    const finalResults = typeof limit === 'number' && limit > 0
-                                        ? aggregated.slice(0, limit)
-                                        : aggregated;
-                                    callback(finalResults);
-                                    this.requestsToResponses.delete(uniqueKey);
-                                    this.partialResults.delete(uniqueKey);
-                                    this.pendingRequests.delete(uniqueKey);
-                                    this.requestsToOnPage.delete(uniqueKey);
-                                    this.requestsToLimit.delete(uniqueKey);
-                                }
-                            }
-                        } catch (error) {
-                            log.error(`Error in request handler: ${error}`);
-                            throw error;
-                        }
-                    },
-                    failedRequestHandler: async (context: CrawlingContext) => {
-                        log.info(`Failed request handler called for: ${context.request.url}`);
-                        try {
-                            const { request, error } = context as any;
-                            const uniqueKey = request.userData.uniqueKey;
-                            log.error(`Failed to process ${request.url}:`, error);
-
-                            const pageNumber = request.userData.page ?? 1;
-
-                            // Per-page callback (failure)
-                            const onPageCb = this.requestsToOnPage.get(uniqueKey);
-                            if (onPageCb) onPageCb(pageNumber, [], uniqueKey, false);
-
-                            // Decrement pending requests even for failed requests
-                            const pendingCount = this.pendingRequests.get(uniqueKey) || 0;
-                            const newPendingCount = pendingCount - 1;
-                            this.pendingRequests.set(uniqueKey, newPendingCount);
-
-                            // If all requests are complete (including failed ones), resolve with accumulated results
-                            if (newPendingCount === 0) {
-                                const callback = this.requestsToResponses.get(uniqueKey);
-                                if (callback) {
-                                    log.info(
-                                        `All requests complete for uniqueKey: ${uniqueKey} (including failed ones)`
-                                    );
-                                    const limit = this.requestsToLimit.get(uniqueKey);
-                                    const aggregated = this.partialResults.get(uniqueKey) || [];
-                                    const finalResults = typeof limit === 'number' && limit > 0
-                                        ? aggregated.slice(0, limit)
-                                        : aggregated;
-                                    callback(finalResults);
-                                    this.requestsToResponses.delete(uniqueKey);
-                                    this.partialResults.delete(uniqueKey);
-                                    this.pendingRequests.delete(uniqueKey);
-                                    this.requestsToOnPage.delete(uniqueKey);
-                                    this.requestsToLimit.delete(uniqueKey);
-                                }
-                            }
-                        } catch (error) {
-                            log.error(`Error in failed request handler: ${error}`);
-                        }
-                    },
-                    additionalMimeTypes: ["text/html", "text/plain"],
-                }
-            );
-            log.info("Crawler initialized");
-            await this.crawler.init();
-            log.info("Crawler init completed");
-        }
-    }
-
     async search(
-        engineName: string,
+        engineName: string | undefined,
         options: SearchOptions,
         onPage?: (page: number, results: SearchResult[], uniqueKey: string, success: boolean) => void,
     ): Promise<SearchResult[]> {
         log.info("Search called with options:", options);
-        return new Promise(async (resolve) => {
-            const uniqueKey = randomUUID();
-            log.info(`Created uniqueKey for search: ${uniqueKey}`);
-            this.requestsToResponses.set(uniqueKey, resolve);
-            this.partialResults.set(uniqueKey, []);
-            // Determine effective pages based on limit if provided
+
+        try {
+            // Use default engine if none provided
+            const actualEngineName = engineName || this.config.defaultEngine || 'default';
+            const engine = this.getEngine(actualEngineName);
+            const allResults: SearchResult[] = [];
+
+            // Determine effective pages
+            const perPage = 10; // Default page size per request for engines that do not support direct limit
             let effectivePages = options.pages ?? 1;
             if (typeof options.limit === 'number' && options.limit > 0) {
-                const perPage = 10; // Google default page size
-                effectivePages = Math.ceil(options.limit / perPage);
-                this.requestsToLimit.set(uniqueKey, options.limit);
-            } else {
-                this.requestsToLimit.set(uniqueKey, undefined);
-            }
-            this.pendingRequests.set(uniqueKey, effectivePages);
-            if (onPage) this.requestsToOnPage.set(uniqueKey, onPage);
-
-            await this.executeSearch(engineName, { ...options, pages: effectivePages }, uniqueKey);
-        });
-    }
-
-    private async executeSearch(
-        engineName: string,
-        options: SearchOptions,
-        uniqueKey: string
-    ): Promise<void> {
-        try {
-            log.info(`Executing search for: ${engineName} ${JSON.stringify(options)}`);
-
-            const engine = this.getEngine(engineName);
-            const tasks: SearchTask[] = [];
-            // account for pages to be added to the queue
-            for (let i = 0; i < (options.pages ?? 1); i++) {
-                tasks.push(
-                    await engine.search({
-                        ...options,
-                        page: i + 1,
-                    })
-                );
-            }
-            log.info(`Tasks: ${JSON.stringify(tasks)}`);
-            log.info(`Got request data: ${tasks.length} requests`);
-
-            if (!this.searchQueue) {
-                throw new Error("Search queue not initialized");
-            }
-
-            // Add requests to the queue
-            for (const request of tasks) {
-                log.info(`Adding request to queue: ${request.url}`);
-                await this.searchQueue.addRequest({
-                    url: request.url,
-                    userData: {
-                        ...request,
-                        uniqueKey,
-                        engineName,
-                        queueName: "AnyCrawl_Search",
-                        options: {}
-                    },
-                    uniqueKey: randomUUID(),
-                });
-            }
-
-            // Always start the crawler
-            if (this.crawler) {
-                log.info("Starting crawler...");
-                const crawlerEngine = this.crawler.getEngine();
-                if (!crawlerEngine.running) {
-                    await crawlerEngine.run();
-                    log.info("Crawler started");
+                // If engine supports direct limit, one request is enough
+                if ((engine as any).supportsDirectLimit) {
+                    effectivePages = 1;
                 } else {
-                    log.info("Crawler already running");
+                    effectivePages = Math.ceil(options.limit / perPage);
                 }
-            } else {
-                throw new Error("Crawler not initialized");
             }
+
+            log.info(`Executing search for: ${actualEngineName}, pages: ${effectivePages}`);
+
+            // Execute requests for each page
+            for (let i = 0; i < effectivePages; i++) {
+                const pageNum = i + 1;
+                try {
+                    // Build task options
+                    const taskOptions: any = { ...options, page: pageNum };
+                    if (typeof options.limit === 'number' && options.limit > 0) {
+                        // If engine does not support direct limit, enforce per-page limit
+                        if (!(engine as any).supportsDirectLimit) {
+                            taskOptions.limit = perPage;
+                        }
+                    }
+                    const task: SearchTask = await engine.search(taskOptions);
+
+                    log.info(`Fetching page ${pageNum}: ${task.url} requireProxy=${task.requireProxy}`);
+
+                    // Prepare cookie header if cookies are present
+                    const cookieHeader = task.cookies && Object.keys(task.cookies).length > 0
+                        ? Object.entries(task.cookies).map(([key, value]) => `${key}=${value}`).join('; ')
+                        : undefined;
+
+                    // Make HTTP request using HttpClient
+                    const response = await HttpClient.get(task.url, {
+                        headers: task.headers,
+                        cookieHeader: cookieHeader,
+                        requireProxy: task.requireProxy === true,
+                        timeoutMs: 30000,
+                        retries: 2,
+                    });
+
+                    // Parse the response
+                    const html = response.rawText || response.data;
+                    const results = await engine.parse(html, { url: task.url, page: pageNum });
+
+                    log.info(`Page ${pageNum} returned ${results.length} results`);
+
+                    // Call onPage callback if provided
+                    if (onPage) {
+                        onPage(pageNum, results, actualEngineName, true);
+                    }
+
+                    // Accumulate results
+                    allResults.push(...results);
+
+                } catch (error) {
+                    log.error(`Error fetching page ${pageNum}: ${error}`);
+
+                    // Call onPage callback with error
+                    if (onPage) {
+                        onPage(pageNum, [], actualEngineName, false);
+                    }
+
+                    // Continue to next page on error
+                    continue;
+                }
+            }
+
+            // Apply limit if specified
+            const finalResults = typeof options.limit === 'number' && options.limit > 0
+                ? allResults.slice(0, options.limit)
+                : allResults;
+
+            log.info(`Search completed: ${finalResults.length} total results`);
+            return finalResults;
+
         } catch (error) {
             log.error(`Search execution error: ${error}`);
-            const callback = this.requestsToResponses.get(uniqueKey);
-            if (callback) {
-                callback([]);
-                this.requestsToResponses.delete(uniqueKey);
-            }
+            return [];
         }
     }
 

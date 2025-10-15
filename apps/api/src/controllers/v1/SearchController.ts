@@ -13,21 +13,13 @@ export class SearchController {
     private searchService: SearchService;
 
     constructor() {
-        this.searchService = new SearchService();
-        // Initialize crawler in constructor
-        this.initializeCrawler().catch((error) => {
-            log.error(`Failed to initialize crawler: ${error}`);
+        this.searchService = new SearchService({
+            defaultEngine: process.env.ANYCRAWL_SEARCH_DEFAULT_ENGINE,
+            enabledEngines: process.env.ANYCRAWL_SEARCH_ENABLED_ENGINES?.split(',').map(e => e.trim()),
+            searxngUrl: process.env.ANYCRAWL_SEARXNG_URL,
+            acEngineUrl: process.env.ANYCRAWL_AC_ENGINE_URL,
         });
-    }
-
-    private async initializeCrawler() {
-        try {
-            await this.searchService.initializeCrawler();
-            log.info("Crawler initialized successfully");
-        } catch (error) {
-            log.error(`Error initializing crawler: ${error}`);
-            throw error;
-        }
+        log.info("SearchController initialized");
     }
 
     public handle = async (req: RequestWithAuth, res: Response): Promise<void> => {
@@ -65,7 +57,9 @@ export class SearchController {
 
             // Validate and parse the merged data
             const validatedData = searchSchema.parse(requestData);
-            engineName = validatedData.engine ?? "google";
+
+            // Get actual engine name that will be used (resolved by SearchService)
+            engineName = this.searchService.resolveEngine(validatedData.engine);
 
             // Create job for search request (pending)
             searchJobId = randomUUID();
@@ -93,15 +87,17 @@ export class SearchController {
             const shouldLimitScrape = typeof validatedData.limit === 'number' && validatedData.limit > 0;
             let remainingScrape = shouldLimitScrape ? (validatedData.limit as number) : Number.POSITIVE_INFINITY;
 
-            const results = await this.searchService.search(engineName, {
+            const results = await this.searchService.search(validatedData.engine, {
                 query: validatedData.query,
                 limit: validatedData.limit,
                 offset: validatedData.offset,
                 pages: expectedPages,
                 lang: validatedData.lang,
-                // country: validatedData.country,
+                country: validatedData.country,
+                timeRange: validatedData.timeRange,
+                sources: validatedData.sources,
+                safe_search: validatedData.safe_search,
             }, async (page, pageResults, _uniqueKey, success) => {
-                console.log(pageResults)
                 try {
                     pagesProcessed += 1;
                     if (!success) {

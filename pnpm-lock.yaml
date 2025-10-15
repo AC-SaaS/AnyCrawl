@@ -502,6 +502,9 @@ importers:
       '@anycrawl/scrape':
         specifier: workspace:*
         version: link:../scrape
+      axios:
+        specifier: ^1.7.9
+        version: 1.12.2
       cheerio:
         specifier: ^1.0.0
         version: 1.1.2
