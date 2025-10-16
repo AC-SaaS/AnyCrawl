@@ -23,11 +23,13 @@ const searchSchema = z.object({
     variables: z.record(z.any()).optional(),
     engine: z.enum(AVAILABLE_SEARCH_ENGINES).optional(),
     query: z.string(),
-    limit: z.number().max(100).min(1).default(10).optional(),
-    offset: z.number().min(0).default(0).optional(),
+    limit: z.number().max(100).min(1).default(10),
+    offset: z.number().min(0).default(0),
     pages: z.number().min(1).max(20).optional(),
     lang: z.custom<SearchLocale>().optional(),
     country: z.custom<SearchLocale>().optional(),
+    timeRange: z.enum(["day", "week", "month", "year"]).optional(),
+    sources: z.enum(["web", "images", "news"]).optional(), // Search sources (SearXNG)
     scrape_options: scrapeOptionsInputSchema.optional(),
     safe_search: z.number().min(0).max(2).nullable().optional(), // 0: off, 1: medium, 2: high, null: default (Google only)
 });
@@ -39,6 +41,8 @@ export const TemplateSearchSchema = searchSchema.pick({
     pages: true,
     lang: true,
     country: true,
+    timeRange: true,
+    sources: true,
     scrape_options: true,
     safe_search: true
 });

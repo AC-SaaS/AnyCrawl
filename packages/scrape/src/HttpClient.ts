@@ -31,7 +31,7 @@ function normalizeProxyUrl(input?: string): string | undefined {
 export async function request<T = any>(method: HttpMethod, url: string, opts?: HttpClientOptions): Promise<HttpResponse<T>> {
     if (!url) throw new Error('Invalid URL');
 
-    const requireProxy = opts?.requireProxy !== false; // default true
+    const requireProxy = opts?.requireProxy === true;
 
     const headers = Object.assign({}, opts?.headers);
     if (opts?.cookieHeader) headers['cookie'] = opts.cookieHeader;
@@ -61,22 +61,27 @@ export async function request<T = any>(method: HttpMethod, url: string, opts?: H
 
     for (let attemptIndex = 1; attemptIndex <= totalAttempts; attemptIndex++) {
         // Determine proxy for this attempt
-        let proxyUrl = normalizeProxyUrl(opts?.proxy);
-        if (!proxyUrl) {
-            const req = new Request({ url });
-            // Ask proxy configuration for a fresh proxy each attempt, stepping tiers like browser engines
-            const tier = attemptIndex - 1; // 0-based tier index
-            try {
-                proxyUrl = await proxyConfiguration.newUrl(undefined, { request: req, proxyTier: tier });
-            } catch {
-                // Fallback to auto selection if explicit tier is invalid/unavailable
-                proxyUrl = await proxyConfiguration.newUrl(undefined, { request: req });
+        let proxyUrl: string | undefined;
+
+        // Only resolve proxy if required
+        if (requireProxy) {
+            proxyUrl = normalizeProxyUrl(opts?.proxy);
+            if (!proxyUrl) {
+                const req = new Request({ url });
+                // Ask proxy configuration for a fresh proxy each attempt, stepping tiers like browser engines
+                const tier = attemptIndex - 1; // 0-based tier index
+                try {
+                    proxyUrl = await proxyConfiguration.newUrl(undefined, { request: req, proxyTier: tier });
+                } catch {
+                    // Fallback to auto selection if explicit tier is invalid/unavailable
+                    proxyUrl = await proxyConfiguration.newUrl(undefined, { request: req });
+                }
             }
-        }
-        if (requireProxy && !proxyUrl) {
-            const e = new Error('PROXY_REQUIRED');
-            e.name = 'PROXY_REQUIRED';
-            throw e;
+            if (!proxyUrl) {
+                const e = new Error('PROXY_REQUIRED');
+                e.name = 'PROXY_REQUIRED';
+                throw e;
+            }
         }
 
         const attemptOpts = { ...baseGsOpts } as any;

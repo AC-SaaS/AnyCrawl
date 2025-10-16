@@ -14,7 +14,7 @@ export class CrawlController {
      */
     public start = async (req: RequestWithAuth, res: Response): Promise<void> => {
         let jobId: string | null = null;
-        let deffaultPrice: number = 0;
+        let defaultPrice: number = 0;
         try {
             // Merge template options with request body before parsing
             let requestData = { ...req.body };
@@ -32,7 +32,7 @@ export class CrawlController {
                     "crawl",
                     currentUserId
                 );
-                deffaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
+                defaultPrice = TemplateHandler.reslovePrice(requestData.template, "credits", "perCall");
                 // Remove template field before schema validation (schemas use strict mode)
                 delete requestData.template;
             }
@@ -67,7 +67,7 @@ export class CrawlController {
             // Add job to queue
             jobId = await QueueManager.getInstance().addJob(`crawl-${jobPayload.engine}`, jobPayload);
 
-            req.creditsUsed = deffaultPrice;
+            req.creditsUsed = defaultPrice + 1;
 
             await createJob({
                 job_id: jobId,

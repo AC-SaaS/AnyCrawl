@@ -1,9 +1,11 @@
-import { SearchEngine, SearchOptions, SearchResult, SearchTask } from "./types.js";
+import { SearchEngine, SearchOptions, SearchResult, SearchTask, WebSearchResult } from "./types.js";
 import { GoogleParameters as google } from "@anycrawl/libs";
 import { log } from "@anycrawl/libs/log";
 import * as cheerio from "cheerio";
 
 export class GoogleSearchEngine implements SearchEngine {
+    // This engine does not support arbitrary large limit in a single request
+    public readonly supportsDirectLimit = false;
     private baseUrl = "https://www.google.com/search";
     private readonly limit = 10;
     private readonly defaultHeaders = {
@@ -183,6 +185,7 @@ export class GoogleSearchEngine implements SearchEngine {
                 url: url,
                 headers: this.defaultHeaders,
                 cookies: this.defaultCookies,
+                requireProxy: true,
             };
         } catch (error) {
             log.error(`Google search error: ${error}`);
@@ -224,12 +227,14 @@ export class GoogleSearchEngine implements SearchEngine {
                     return; // Skip if no content found
                 }
 
-                results.push({
+                const webResult: WebSearchResult = {
+                    category: "web",
                     title,
                     url,
                     description: content,
                     source: "Google Search Result",
-                });
+                };
+                results.push(webResult);
             } catch (error) {
                 log.error("Error parsing search result:", { error: String(error) });
             }
