@@ -190,7 +190,7 @@ export class EngineConfigurator {
         // set request timeout and faster navigation for each request
         const requestTimeoutHook = async ({ request }: any, gotoOptions: any) => {
             const timeoutMs = request.userData.options.timeout || (process.env.ANYCRAWL_NAV_TIMEOUT ? parseInt(process.env.ANYCRAWL_NAV_TIMEOUT) : 30_000);
-            const waitUntil = (request.userData.options.waitUntil || process.env.ANYCRAWL_NAV_WAIT_UNTIL || 'domcontentloaded') as any;
+            const waitUntil = (request.userData.options.wait_until || process.env.ANYCRAWL_NAV_WAIT_UNTIL || 'domcontentloaded') as any;
             log.debug(`Setting navigation for ${request.url} to timeout=${timeoutMs}ms waitUntil=${waitUntil}`);
             gotoOptions.timeout = timeoutMs;
             gotoOptions.waitUntil = waitUntil;
