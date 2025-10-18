@@ -29,9 +29,31 @@ export interface TemplateConfig {
         queryTransform?: {
             enabled: boolean;
             mode: "template" | "append";
-            template?: string;  // Template mode: use {{query}} or {{keyword}} placeholder, e.g. "site:abc.com {{query}}"
+            template?: string;  // Template mode: use {{query}} placeholder, e.g. "site:abc.com {{query}}"
             prefix?: string;    // Append mode: prefix to add before query
             suffix?: string;    // Append mode: suffix to add after query
+            // Optional: extract substring with regex before applying mode
+            regexExtract?: {
+                pattern: string; // e.g. ^(https?:\/\/www\.tiktok\.com\/@[^\/?#]+)
+                flags?: string;  // e.g. "i"
+                group?: number;  // default 0
+                trim?: boolean;  // default true
+            };
+        };
+        // URL transformation for scrape/crawl templates
+        urlTransform?: {
+            enabled: boolean;
+            mode: "template" | "append";
+            template?: string;  // Template mode: use {{url}} placeholder, e.g. "https://example.com?q={{url}}"
+            prefix?: string;    // Append mode: prefix to add before url
+            suffix?: string;    // Append mode: suffix to add after url
+            // Optional: extract substring with regex before applying mode
+            regexExtract?: {
+                pattern: string; // e.g. ^(https?:\/\/www\.tiktok\.com\/@[^\/?#]+)
+                flags?: string;  // e.g. "i"
+                group?: number;  // default 0
+                trim?: boolean;  // default true
+            };
         };
         requestHandler?: {
             enabled: boolean;

@@ -146,6 +146,20 @@ export class EngineConfigurator {
     }
 
     private static configureBrowserEngine(options: any, engineType: ConfigurableEngineType): void {
+        // Enforce viewport for browser engines
+        const viewportHook = async ({ page }: any) => {
+            try {
+                if (!page) return;
+                if ((page as any).__viewportApplied) return;
+                (page as any).__viewportApplied = true;
+                if (engineType === ConfigurableEngineType.PLAYWRIGHT) {
+                    await page.setViewportSize({ width: 1920, height: 1080 });
+                } else if (engineType === ConfigurableEngineType.PUPPETEER) {
+                    try { await page.setViewport({ width: 1920, height: 1080 }); } catch { }
+                }
+            } catch { }
+        };
+
         // Ad blocking configuration
         const adBlockingHook = async ({ page }: any) => {
             const shouldBlock = (url: string) => AD_DOMAINS.some(domain => url.includes(domain));
@@ -247,7 +261,7 @@ export class EngineConfigurator {
 
         // Add browser-specific hooks to preNavigationHooks
         const existingHooks = options.preNavigationHooks || [];
-        options.preNavigationHooks = [adBlockingHook, requestTimeoutHook, authenticationHook, ...existingHooks];
+        options.preNavigationHooks = [viewportHook, adBlockingHook, requestTimeoutHook, authenticationHook, ...existingHooks];
 
         log.debug(`[EngineConfigurator] Browser-specific hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, existingHooks=${existingHooks.length}`);
 

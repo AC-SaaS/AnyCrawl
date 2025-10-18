@@ -2,7 +2,7 @@ import { getTemplate } from "@anycrawl/db";
 import { AVAILABLE_ENGINES } from "@anycrawl/scrape";
 import { TemplateClient } from "@anycrawl/template-client";
 import { mergeOptionsWithTemplate } from "./optionMerger.js";
-import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema, TemplateConfig } from "@anycrawl/libs";
+import { TemplateScrapeSchema, TemplateCrawlSchema, TemplateSearchSchema, TemplateConfig, log } from "@anycrawl/libs";
 import { DomainValidator, TemplateExecutionError } from "@anycrawl/template-client";
 
 /**
@@ -387,11 +387,29 @@ export class TemplateHandler {
             }
         }
 
-        // For search templates, apply query transformation if configured
-        if (templateType === "search" && mergedData.query && templateResult.template.customHandlers?.queryTransform?.enabled) {
-            mergedData.query = this.transformQuery(
+        // For search templates, apply query transformation if configured and log original/final
+        if (templateType === "search" && mergedData.query && templateResult.template.customHandlers?.queryTransform) {
+            mergedData.query = this.applyAndLogTransform(
                 mergedData.query,
-                templateResult.template.customHandlers.queryTransform
+                templateResult.template.customHandlers?.queryTransform,
+                templateResult.template,
+                "query"
+            );
+        }
+
+        // Apply URL transformation if present and log original/final
+        // Preserve original URL for downstream proxy/glob matching
+        if (mergedData.url && templateResult.template.customHandlers?.urlTransform) {
+            try {
+                if (!mergedData.original_url) {
+                    mergedData.original_url = mergedData.url;
+                }
+            } catch { /* ignore */ }
+            mergedData.url = this.applyAndLogTransform(
+                mergedData.url,
+                templateResult.template.customHandlers?.urlTransform,
+                templateResult.template,
+                "url"
             );
         }
 
@@ -436,35 +454,92 @@ export class TemplateHandler {
     }
 
     /**
-     * Transform query string based on template configuration
-     * @param originalQuery - The original query from user input
-     * @param transform - The query transform configuration
-     * @returns Transformed query string
+     * Generic transform that supports optional regex extraction, then template/append modes
      */
-    private static transformQuery(
-        originalQuery: string,
-        transform: NonNullable<TemplateConfig["customHandlers"]>["queryTransform"]
+    private static applyTransform(
+        originalValue: string,
+        transform: {
+            enabled: boolean;
+            mode: "template" | "append";
+            template?: string;
+            prefix?: string;
+            suffix?: string;
+            regexExtract?: { pattern: string; flags?: string; group?: number; trim?: boolean };
+        } | undefined,
+        templatePlaceholder: string
     ): string {
         if (!transform || !transform.enabled) {
-            return originalQuery;
+            log.info(`Transform disabled or missing; skipping. value="${originalValue}"`);
+            return originalValue;
         }
 
-        // Template mode: replace {{query}} or {{keyword}} placeholders
-        if (transform.mode === "template" && transform.template) {
-            return transform.template
-                .replace(/\{\{query\}\}/g, originalQuery)
-                .replace(/\{\{keyword\}\}/g, originalQuery);
+        let subject = originalValue;
+
+        // Optional regex extraction
+        const reCfg = transform.regexExtract;
+        if (reCfg && reCfg.pattern) {
+            try {
+                const re = new RegExp(reCfg.pattern, reCfg.flags || undefined);
+                const match = subject.match(re);
+                if (match) {
+                    const groupIndex = Number.isInteger(reCfg.group) ? (reCfg.group as number) : 0;
+                    if (groupIndex >= 0 && groupIndex < match.length) {
+                        subject = match[groupIndex] ?? match[0];
+                    } else {
+                        subject = match[0];
+                    }
+                    if (reCfg.trim !== false) {
+                        subject = subject.trim();
+                    }
+                }
+            } catch {
+                // Invalid regex config - ignore and fall back to original subject
+            }
         }
 
-        // Append mode: add prefix and/or suffix
+        if (transform.mode === "template") {
+            if (!transform.template) {
+                log.info(`Template mode requires 'template' string; skipping transform.`);
+                return subject;
+            }
+            const ph = new RegExp(`\\{\\{${templatePlaceholder}\\}\\}`, "g");
+            return transform.template.replace(ph, subject);
+        }
+
         if (transform.mode === "append") {
             const prefix = transform.prefix || "";
             const suffix = transform.suffix || "";
-            return `${prefix}${originalQuery}${suffix}`;
+            if (!prefix && !suffix) {
+                log.info(`Append mode configured but both prefix and suffix are empty; skipping transform.`);
+                return subject;
+            }
+            return `${prefix}${subject}${suffix}`;
         }
 
-        // Fallback: return original query if mode is not recognized
-        return originalQuery;
+        log.info(`Unknown transform mode: "${String((transform as any).mode)}"; skipping transform.`);
+        return subject;
+    }
+
+    /**
+     * Apply transform and log original/final values for a given field
+     */
+    private static applyAndLogTransform(
+        value: string,
+        transform: {
+            enabled: boolean;
+            mode: "template" | "append";
+            template?: string;
+            prefix?: string;
+            suffix?: string;
+            regexExtract?: { pattern: string; flags?: string; group?: number; trim?: boolean };
+        } | undefined,
+        template: TemplateConfig,
+        field: "url" | "query"
+    ): string {
+        const original = value;
+        const finalValue = this.applyTransform(value, transform as any, field);
+        log.info(`Template ${field} transform: original="${original}", final="${finalValue}", template_id="${(template as any).templateId}"`);
+        return finalValue;
     }
 }
 
