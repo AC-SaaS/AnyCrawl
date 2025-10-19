@@ -16,19 +16,25 @@ export class TemplateCache {
 
     constructor(config?: Partial<CacheConfig>) {
         this.config = {
-            ttl: config?.ttl || 300000, // 5 minutes default
+            ttl: config?.ttl || 300000, // 5 minutes default (0 disables cache)
             maxSize: config?.maxSize || 100,
             cleanupInterval: config?.cleanupInterval || 60000, // 1 minute default
         };
 
         // Start cleanup timer
-        this.startCleanupTimer();
+        if (this.config.ttl > 0) {
+            this.startCleanupTimer();
+        }
     }
 
     /**
      * Get template from cache
      */
     async get(templateId: string): Promise<TemplateConfig | null> {
+        // When ttl <= 0, caching is disabled
+        if (this.config.ttl <= 0) {
+            return null;
+        }
         const cached = this.cache.get(templateId);
 
         if (!cached) {
@@ -48,6 +54,10 @@ export class TemplateCache {
      * Set template in cache
      */
     async set(templateId: string, template: TemplateConfig): Promise<void> {
+        // When ttl <= 0, do not store anything
+        if (this.config.ttl <= 0) {
+            return;
+        }
         // Check if cache is full
         if (this.cache.size >= this.config.maxSize) {
             // Remove oldest entry

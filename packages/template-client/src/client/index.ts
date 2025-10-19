@@ -24,7 +24,17 @@ export class TemplateClient {
     private dbReady: Promise<void>;
 
     constructor(config?: TemplateClientConfig) {
-        this.cache = new TemplateCache(config?.cacheConfig);
+        // Resolve cache TTL from env (0 disables cache; >0 sets TTL in ms)
+        const ttlFromEnvRaw = process.env.ANYCRAWL_TEMPLATE_CACHE_TTL_MS || process.env.TEMPLATE_CACHE_TTL_MS;
+        let effectiveCacheConfig = config?.cacheConfig;
+        if (ttlFromEnvRaw !== undefined) {
+            const parsedTtl = parseInt(ttlFromEnvRaw, 10);
+            if (!Number.isNaN(parsedTtl) && parsedTtl >= 0) {
+                effectiveCacheConfig = { ...(effectiveCacheConfig || {}), ttl: parsedTtl } as any;
+            }
+        }
+
+        this.cache = new TemplateCache(effectiveCacheConfig);
         this.sandbox = new QuickJSSandbox(config?.sandboxConfig);
         this.validator = new TemplateCodeValidator();
         this.dbReady = this.initializeDatabase();
