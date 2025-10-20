@@ -22,6 +22,30 @@ interface ExecutionStats {
 export class QuickJSSandbox {
     private config: SandboxConfig;
 
+    // Provide preNav API that proxies to a host implementation injected via executionContext.preNavHost
+    private createPreNavApi(sandboxCtx: SandboxContext) {
+        const host = (sandboxCtx.executionContext as any)?.preNavHost;
+        const ensure = (fnName: string) => {
+            if (!host || typeof host[fnName] !== 'function') {
+                throw new SandboxError(`preNav host is not available: missing ${fnName}()`);
+            }
+        };
+        return {
+            wait: async (key: string, opts?: { timeoutMs?: number }) => {
+                ensure('wait');
+                return await host.wait(key, opts);
+            },
+            get: async (key: string) => {
+                ensure('get');
+                return await host.get(key);
+            },
+            has: async (key: string) => {
+                ensure('has');
+                return await host.has(key);
+            }
+        };
+    }
+
     /**
      * Resolve full HTML content from available sources in a consistent order.
      * Order: scrapeResult.rawHtml -> scrapeResult.html -> response.body -> page.content()
@@ -251,6 +275,7 @@ export class QuickJSSandbox {
                 variables: context.variables,
                 httpClient: createHttpCrawlee(context.executionContext.userData?.options?.proxy ?? undefined),
                 userData: context.executionContext.userData,
+                preNav: this.createPreNavApi(context),
                 // Safe helper to read cookies without exposing page.context()
                 cookies: async () => {
                     try {
@@ -335,6 +360,7 @@ export class QuickJSSandbox {
                 html,
                 page: context.page,
                 userData: context.executionContext.userData,
+                preNav: this.createPreNavApi(context),
                 // Safe helper to read cookies without exposing page.context()
                 cookies: async () => {
                     try {

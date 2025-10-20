@@ -25,6 +25,15 @@ export interface TemplateConfig {
 
     // Custom handlers code
     customHandlers?: {
+        // Pre-navigation capture rules for browser engines
+        preNav?: Array<{
+            key: string; // unique per request scope
+            rules: Array<
+                | { type: 'exact'; pattern: string }
+                | { type: 'glob'; pattern: string }
+                | { type: 'regex'; pattern: string }
+            >;
+        }>;
         // Query transformation for search templates
         queryTransform?: {
             enabled: boolean;

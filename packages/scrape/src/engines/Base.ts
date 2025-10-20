@@ -650,7 +650,8 @@ export abstract class BaseEngine {
                                         url: context.request.url,
                                         method: context.request.method || 'GET',
                                         headers: context.request.headers || {},
-                                        body: (context.request as any).body
+                                        body: (context.request as any).body,
+                                        uniqueKey: context.request.uniqueKey,
                                     },
                                     userData: context.request.userData,
                                     variables: templateVariables,
@@ -663,7 +664,47 @@ export abstract class BaseEngine {
                                     response: context.response,
                                     scrapeResult: {}, // Template starts without scrapeResult, but has page access
                                     // Pass page object for browser-based engines (Playwright/Puppeteer)
-                                    page: (context as any).page
+                                    page: (context as any).page,
+                                    // Host-side preNav API (Redis-backed) for sandbox to call
+                                    preNavHost: {
+                                        wait: async (key: string, opts?: { timeoutMs?: number }) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            const sigKey = `prenav:sig:${ns}`;
+                                            // Fast path
+                                            const s = await redis.get(dataKey);
+                                            if (s) { try { return JSON.parse(s); } catch { return s; } }
+                                            // Wait on signal
+                                            const timeoutMs = opts?.timeoutMs ?? 30000;
+                                            const timeoutSec = Math.max(1, Math.ceil(timeoutMs / 1000));
+                                            try { await redis.blpop(sigKey, timeoutSec); } catch { /* ignore */ }
+                                            const after = await redis.get(dataKey);
+                                            if (after) { try { return JSON.parse(after); } catch { return after; } }
+                                            throw new Error(`preNav timeout for key: ${key}`);
+                                        },
+                                        get: async (key: string) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            const s = await redis.get(dataKey);
+                                            if (!s) return undefined;
+                                            try { return JSON.parse(s); } catch { return s; }
+                                        },
+                                        has: async (key: string) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            const exists = await redis.exists(dataKey);
+                                            return !!exists;
+                                        }
+                                    }
                                 };
 
                                 log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Template execution started: ${templateId}`);

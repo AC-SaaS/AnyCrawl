@@ -16,9 +16,9 @@ export class TemplateCache {
 
     constructor(config?: Partial<CacheConfig>) {
         this.config = {
-            ttl: config?.ttl || 300000, // 5 minutes default (0 disables cache)
-            maxSize: config?.maxSize || 100,
-            cleanupInterval: config?.cleanupInterval || 60000, // 1 minute default
+            ttl: config?.ttl !== undefined ? config.ttl : 300000, // 5 minutes default (0 disables cache)
+            maxSize: config?.maxSize !== undefined ? config.maxSize : 100,
+            cleanupInterval: config?.cleanupInterval !== undefined ? config.cleanupInterval : 60000, // 1 minute default
         };
 
         // Start cleanup timer
