@@ -674,16 +674,26 @@ export abstract class BaseEngine {
                                             const ns = `${jobId}:${requestId}:${key}`;
                                             const dataKey = `prenav:data:${ns}`;
                                             const sigKey = `prenav:sig:${ns}`;
+                                            log.debug(`[preNavHost.wait] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
                                             // Fast path
                                             const s = await redis.get(dataKey);
-                                            if (s) { try { return JSON.parse(s); } catch { return s; } }
+                                            if (s) {
+                                                log.debug(`[preNavHost.wait] fast path hit for key=${key}, data length=${s.length}`);
+                                                try { return JSON.parse(s); } catch { return s; }
+                                            }
                                             // Wait on signal
+                                            log.debug(`[preNavHost.wait] waiting on signal for key=${key}, sigKey=${sigKey}`);
                                             const timeoutMs = opts?.timeoutMs ?? 30000;
                                             const timeoutSec = Math.max(1, Math.ceil(timeoutMs / 1000));
                                             try { await redis.blpop(sigKey, timeoutSec); } catch { /* ignore */ }
                                             const after = await redis.get(dataKey);
-                                            if (after) { try { return JSON.parse(after); } catch { return after; } }
-                                            throw new Error(`preNav timeout for key: ${key}`);
+                                            if (after) {
+                                                log.debug(`[preNavHost.wait] data retrieved after wait for key=${key}, data length=${after.length}`);
+                                                try { return JSON.parse(after); } catch { return after; }
+                                            }
+                                            // Timeout - return undefined instead of throwing error
+                                            log.warning(`[preNavHost.wait] timeout for key=${key} (waited ${timeoutMs}ms) - returning undefined`);
+                                            return undefined;
                                         },
                                         get: async (key: string) => {
                                             const redis = Utils.getInstance().getRedisConnection();
@@ -691,8 +701,13 @@ export abstract class BaseEngine {
                                             const requestId = context.request.uniqueKey || 'unknown';
                                             const ns = `${jobId}:${requestId}:${key}`;
                                             const dataKey = `prenav:data:${ns}`;
+                                            log.debug(`[preNavHost.get] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
                                             const s = await redis.get(dataKey);
-                                            if (!s) return undefined;
+                                            if (!s) {
+                                                log.debug(`[preNavHost.get] no data found for key=${key}`);
+                                                return undefined;
+                                            }
+                                            log.debug(`[preNavHost.get] data found for key=${key}, data length=${s.length}`);
                                             try { return JSON.parse(s); } catch { return s; }
                                         },
                                         has: async (key: string) => {
@@ -701,11 +716,15 @@ export abstract class BaseEngine {
                                             const requestId = context.request.uniqueKey || 'unknown';
                                             const ns = `${jobId}:${requestId}:${key}`;
                                             const dataKey = `prenav:data:${ns}`;
+                                            log.debug(`[preNavHost.has] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
                                             const exists = await redis.exists(dataKey);
+                                            log.debug(`[preNavHost.has] key=${key}, exists=${exists}`);
                                             return !!exists;
                                         }
                                     }
                                 };
+
+                                log.debug(`[templateExecutionContext] created with keys: ${Object.keys(templateExecutionContext).join(',')}, preNavHost exists: ${!!templateExecutionContext.preNavHost}`);
 
                                 log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Template execution started: ${templateId}`);
                                 const result = await this.templateClient!.executeTemplate(templateId as string, templateExecutionContext);

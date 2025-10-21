@@ -264,9 +264,17 @@ export class EngineConfigurator {
         // Pre-navigation capture hook for preNav rules
         const preNavHook = async ({ page, request }: any) => {
             try {
-                if (!page || !request) return;
+                log.debug(`[preNavHook] called with page=${!!page}, request=${!!request}, url=${request?.url}`);
+                if (!page || !request) {
+                    log.warning(`[preNavHook] missing page or request, skipping`);
+                    return;
+                }
                 const templateId = request.userData?.options?.template_id || request.userData?.templateId;
-                if (!templateId) return;
+                log.debug(`[preNavHook] templateId=${templateId}, url=${request.url}`);
+                if (!templateId) {
+                    log.debug(`[preNavHook] no templateId found, skipping preNav setup`);
+                    return;
+                }
 
                 // Load template to read preNav rules
                 let template: any = null;
@@ -274,7 +282,9 @@ export class EngineConfigurator {
                     const { TemplateClient } = await import('@anycrawl/template-client');
                     const tc = new TemplateClient();
                     template = await tc.getTemplate(templateId);
-                } catch {
+                    log.debug(`[preNavHook] template loaded successfully: ${templateId}`);
+                } catch (e) {
+                    log.error(`[preNavHook] failed to load template ${templateId}: ${e}`);
                     return;
                 }
                 const preNav = template?.customHandlers?.preNav;
@@ -310,6 +320,7 @@ export class EngineConfigurator {
                 const redis = Utils.getInstance().getRedisConnection();
                 const jobId = request.userData?.jobId || 'unknown';
                 const requestId = request.uniqueKey || `${Date.now()}`;
+                console.log(`[preNav] enabled! jobId=${jobId}, requestId=${requestId}, keys=[${keyCfgs.map(k => k.key).join(', ')}]`);
                 log.debug(`[preNav] enabled templateId=${templateId} jobId=${jobId} requestId=${requestId} keys=[${keyCfgs.map(k => k.key).join(', ')}]`);
 
                 const matchUrl = (url: string, rules: Rule[]): boolean => {
@@ -407,19 +418,21 @@ export class EngineConfigurator {
                             const ns = `${jobId}:${requestId}:${cfg.key}`;
                             const dataKey = `prenav:data:${ns}`;
                             const sigKey = `prenav:sig:${ns}`;
-
                             try {
-                                log.debug(`[preNav] redis.set NX dataKey=${dataKey}`);
-                                const res = await (redis as any).set(dataKey, JSON.stringify(payload), 'NX', 'EX', 1800);
-                                log.debug(`[preNav] redis.set result=${res}`);
+                                const payloadStr = JSON.stringify(payload);
+                                log.debug(`[preNav] storing payload for key=${cfg.key}, dataKey=${dataKey}, payload size=${payloadStr.length}, keys=${Object.keys(payload).join(',')}`);
+                                log.debug(`[preNav] payload preview: ${payloadStr.substring(0, 300)}`);
+                                const res = await (redis as any).set(dataKey, payloadStr, 'EX', 1800);
+                                log.debug(`[preNav] redis.set result=${res} for dataKey=${dataKey}`);
                                 if (res === 'OK') {
                                     log.debug(`[preNav] redis.lpush sigKey=${sigKey}`);
                                     await (redis as any).lpush(sigKey, '1');
+                                    log.info(`[preNav] ✓ Successfully captured and stored data for key=${cfg.key}, url=${url}`);
                                 } else {
-                                    log.debug(`[preNav] skip signal (already set) key=${cfg.key}`);
+                                    log.warning(`[preNav] redis.set returned ${res} instead of OK for key=${cfg.key}`);
                                 }
                             } catch (e) {
-                                log.debug(`[preNav] redis error: ${e instanceof Error ? e.message : String(e)}`);
+                                log.error(`[preNav] redis error for key=${cfg.key}: ${e instanceof Error ? e.message : String(e)}`);
                             }
 
                             cfg.done = true;
@@ -430,22 +443,28 @@ export class EngineConfigurator {
                             log.debug(`[preNav] all keys satisfied, cleaning up listeners`);
                             try { page.off('response', onResponse); } catch { }
                         }
-                    } catch { /* ignore */ }
+                    } catch (err) {
+                        log.error(`[preNav] onResponse error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
                 };
 
                 page.on('response', onResponse);
+                log.debug(`[preNavHook] response listener attached successfully`);
                 page.once('close', () => {
                     log.debug(`[preNav] page closed, cleaning up listeners`);
                     try { page.off('response', onResponse); } catch { }
                 });
-            } catch { /* ignore */ }
+            } catch (err) {
+                log.error(`[preNavHook] unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+                log.error(`[preNavHook] stack: ${err instanceof Error ? err.stack : 'N/A'}`);
+            }
         };
 
         // Add browser-specific hooks to preNavigationHooks
         const existingHooks = options.preNavigationHooks || [];
         options.preNavigationHooks = [viewportHook, adBlockingHook, requestTimeoutHook, authenticationHook, preNavHook, ...existingHooks];
 
-        log.debug(`[EngineConfigurator] Browser-specific hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, existingHooks=${existingHooks.length}`);
+        log.info(`[EngineConfigurator] Browser-specific hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, hooks=[viewport, adBlocking, requestTimeout, authentication, preNav], existingHooks=${existingHooks.length}`);
 
         // Apply headless configuration from environment
         if (options.headless === undefined) {

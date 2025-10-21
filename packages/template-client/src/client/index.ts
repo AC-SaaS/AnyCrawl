@@ -138,14 +138,16 @@ export class TemplateClient {
             // If custom handler is enabled, execute it and return only template enhancements
             if (template.customHandlers?.requestHandler?.enabled) {
                 // Execute custom handler with scrape result context
+                const sandboxContext = {
+                    template,
+                    executionContext: { ...context, scrapeResult: context.scrapeResult || {} },
+                    variables: context.variables || {},
+                    page: (context as any).page, // Pass page object for browser-based templates
+                };
+
                 const customResult = await this.sandbox.executeCode(
                     template.customHandlers.requestHandler.code.source,
-                    {
-                        template,
-                        executionContext: { ...context, scrapeResult: context.scrapeResult || {} },
-                        variables: context.variables || {},
-                        page: (context as any).page, // Pass page object for browser-based templates
-                    }
+                    sandboxContext
                 );
 
                 // Return only the custom handler result (template enhancements)

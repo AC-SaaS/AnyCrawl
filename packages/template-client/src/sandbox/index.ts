@@ -25,25 +25,73 @@ export class QuickJSSandbox {
     // Provide preNav API that proxies to a host implementation injected via executionContext.preNavHost
     private createPreNavApi(sandboxCtx: SandboxContext) {
         const host = (sandboxCtx.executionContext as any)?.preNavHost;
+        log.debug(`[createPreNavApi] host exists: ${!!host}, keys: ${host ? Object.keys(host).join(',') : 'N/A'}`);
+        log.debug(`[createPreNavApi] executionContext keys: ${sandboxCtx.executionContext ? Object.keys(sandboxCtx.executionContext).join(',') : 'N/A'}`);
+
         const ensure = (fnName: string) => {
             if (!host || typeof host[fnName] !== 'function') {
+                log.error(`[createPreNavApi] preNav host validation failed: host=${!!host}, fnName=${fnName}, type=${host ? typeof host[fnName] : 'N/A'}`);
                 throw new SandboxError(`preNav host is not available: missing ${fnName}()`);
             }
         };
-        return {
+
+        const preNavApi = {
             wait: async (key: string, opts?: { timeoutMs?: number }) => {
                 ensure('wait');
-                return await host.wait(key, opts);
+                log.debug(`[preNav.wait] called with key=${key}, opts=${JSON.stringify(opts)}`);
+                const result = await host.wait(key, opts);
+                if (result === undefined) {
+                    log.warning(`[preNav.wait] timeout for key=${key} - no data captured`);
+                } else {
+                    log.debug(`[preNav.wait] result for key=${key}: ${JSON.stringify(result).substring(0, 200)}`);
+                }
+                return result;
             },
             get: async (key: string) => {
                 ensure('get');
-                return await host.get(key);
+                log.debug(`[preNav.get] called with key=${key}`);
+                const result = await host.get(key);
+                log.debug(`[preNav.get] result for key=${key}: ${JSON.stringify(result).substring(0, 200)}`);
+                return result;
             },
             has: async (key: string) => {
                 ensure('has');
-                return await host.has(key);
+                log.debug(`[preNav.has] called with key=${key}`);
+                const result = await host.has(key);
+                log.debug(`[preNav.has] result for key=${key}: ${result}`);
+                return result;
+            },
+            // Custom serialization for console.log and JSON.stringify
+            toJSON: () => {
+                return {
+                    _type: 'PreNavAPI',
+                    _description: 'Pre-navigation data capture API',
+                    _methods: ['wait(key, opts?)', 'get(key)', 'has(key)'],
+                    _example: 'const data = await preNav.wait("xUserTweets", { timeoutMs: 10000 })',
+                    _note: 'wait() returns undefined on timeout (no error thrown)',
+                    _available: !!host
+                };
+            },
+            // Custom string representation
+            toString: () => {
+                return '[PreNavAPI: wait, get, has]';
+            },
+            // Inspection symbol for better Node.js console output
+            [Symbol.for('nodejs.util.inspect.custom')]: () => {
+                return {
+                    type: 'PreNavAPI',
+                    methods: {
+                        wait: '(key: string, opts?: { timeoutMs?: number }) => Promise<any | undefined>',
+                        get: '(key: string) => Promise<any | undefined>',
+                        has: '(key: string) => Promise<boolean>'
+                    },
+                    note: 'wait() returns undefined on timeout',
+                    available: !!host
+                };
             }
         };
+
+        return preNavApi;
     }
 
     /**
