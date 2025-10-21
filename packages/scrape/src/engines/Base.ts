@@ -364,7 +364,11 @@ export abstract class BaseEngine {
                     ...(includeRegexps.length > 0 ? { regexps: includeRegexps } : {}),
                     ...(exclude.length > 0 ? { exclude } : {}),
                     // Pass along the userData to new requests
-                    userData: context.request.userData,
+                    // Ensure original_url is propagated before url transforms of child links
+                    userData: {
+                        ...context.request.userData,
+                        ...(context.request.userData?.original_url ? { original_url: context.request.userData.original_url } : {}),
+                    },
                     // Use 'all' strategy to crawl more broadly, or 'same-domain' for same domain
                     strategy: strategy,
                     // Keep original limit to ensure we don't under-enqueue
@@ -530,38 +534,38 @@ export abstract class BaseEngine {
                 if (waitForSelector) {
                     if ((context as any).page) {
                         const page: any = (context as any).page;
-                        let selector: string | undefined;
-                        let timeout: number | undefined;
-                        let state: any | undefined;
-                        if (typeof waitForSelector === 'string') {
-                            selector = waitForSelector;
-                            state = 'visible';
-                        } else if (typeof waitForSelector === 'object' && waitForSelector.selector) {
-                            selector = waitForSelector.selector;
-                            timeout = waitForSelector.timeout;
-                            state = waitForSelector.state ?? 'visible';
-                        }
-                        if (selector) {
+                        const engineName = this.constructor.name.toLowerCase();
+
+                        const entries = Array.isArray(waitForSelector) ? waitForSelector : [waitForSelector];
+                        for (const entry of entries) {
+                            let selector: string | undefined;
+                            let timeout: number | undefined;
+                            let state: any | undefined;
+                            if (typeof entry === 'string') {
+                                selector = entry;
+                                state = 'visible';
+                            } else if (entry && typeof entry === 'object' && (entry as any).selector) {
+                                selector = (entry as any).selector;
+                                timeout = (entry as any).timeout;
+                                state = (entry as any).state ?? 'visible';
+                            }
+                            if (!selector) continue;
+
                             log.debug(`Waiting for selector '${selector}' (state=${state}${timeout ? `, timeout=${timeout}ms` : ''}) at ${context.request.url}`);
-                            // Use engine-specific signature to avoid duplicate waits
-                            if (typeof page.waitForSelector === 'function') {
-                                const engineName = this.constructor.name.toLowerCase();
-                                try {
-                                    if (engineName.includes('playwright')) {
-                                        await page.waitForSelector(selector, { state, timeout });
-                                    } else if (engineName.includes('puppeteer')) {
-                                        const opts: any = { timeout };
-                                        if (state === 'visible') opts.visible = true;
-                                        if (state === 'hidden' || state === 'detached') opts.hidden = true;
-                                        await page.waitForSelector(selector, opts);
-                                    } else {
-                                        // Unknown engine: safest minimal wait
-                                        await page.waitForSelector(selector, { timeout });
-                                    }
-                                } catch (err) {
-                                    // Make wait non-blocking: log and continue
-                                    log.warning(`[wait_for_selector] Failed for selector '${selector}' at ${context.request.url}: ${err instanceof Error ? err.message : String(err)}`);
+                            if (typeof page.waitForSelector !== 'function') continue;
+                            try {
+                                if (engineName.includes('playwright')) {
+                                    await page.waitForSelector(selector, { state, timeout });
+                                } else if (engineName.includes('puppeteer')) {
+                                    const opts: any = { timeout };
+                                    if (state === 'visible') opts.visible = true;
+                                    if (state === 'hidden' || state === 'detached') opts.hidden = true;
+                                    await page.waitForSelector(selector, opts);
+                                } else {
+                                    await page.waitForSelector(selector, { timeout });
                                 }
+                            } catch (err) {
+                                log.warning(`[wait_for_selector] Failed for selector '${selector}' at ${context.request.url}: ${err instanceof Error ? err.message : String(err)}`);
                             }
                         }
                     } else {
@@ -569,15 +573,36 @@ export abstract class BaseEngine {
                     }
                 }
 
-                // Then handle wait_for seconds (browser-only)
+
+                // Then handle wait_for delay (browser-only)
                 if (context.request.userData.options?.wait_for) {
                     if (context.page) {
-                        log.debug(`Waiting for ${context.request.userData.options.wait_for} seconds for ${context.request.url}`);
+                        log.debug(`Waiting for ${context.request.userData.options.wait_for} ms for ${context.request.url}`);
                         await sleep(context.request.userData.options.wait_for);
                     } else {
                         log.warning(`'wait_for' option is not supported for non-browser crawlers. URL: ${context.request.url}`);
                     }
                 }
+
+                // Expose lazy pre-navigation capture access via context
+                try {
+                    const jobId = context.request.userData?.jobId;
+                    const templateId = context.request.userData?.options?.template_id;
+                    if (jobId && templateId) {
+                        // Multiple capture groups; expose a function to fetch by capture key
+                        (context as any).getPreNavCaptured = async (captureKey: string) => {
+                            try {
+                                if (typeof captureKey !== 'string' || !captureKey) return [];
+                                const redisKey = `preNav:${jobId}:${captureKey}`;
+                                const redis = Utils.getInstance().getRedisConnection();
+                                const items = await redis.lrange(redisKey, 0, -1);
+                                if (!Array.isArray(items)) return [];
+                                return items.map((s) => { try { return JSON.parse(s); } catch { return s; } });
+                            } catch { return []; }
+                        };
+                        (context as any).preNavKeyPrefix = `preNav:${jobId}:`;
+                    }
+                } catch { /* ignore */ }
 
                 // Check if this is a template-based request BEFORE extraction
                 const templateId = context.request.userData.options?.template_id;
@@ -625,7 +650,8 @@ export abstract class BaseEngine {
                                         url: context.request.url,
                                         method: context.request.method || 'GET',
                                         headers: context.request.headers || {},
-                                        body: (context.request as any).body
+                                        body: (context.request as any).body,
+                                        uniqueKey: context.request.uniqueKey,
                                     },
                                     userData: context.request.userData,
                                     variables: templateVariables,
@@ -638,8 +664,67 @@ export abstract class BaseEngine {
                                     response: context.response,
                                     scrapeResult: {}, // Template starts without scrapeResult, but has page access
                                     // Pass page object for browser-based engines (Playwright/Puppeteer)
-                                    page: (context as any).page
+                                    page: (context as any).page,
+                                    // Host-side preNav API (Redis-backed) for sandbox to call
+                                    preNavHost: {
+                                        wait: async (key: string, opts?: { timeoutMs?: number }) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            const sigKey = `prenav:sig:${ns}`;
+                                            log.debug(`[preNavHost.wait] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
+                                            // Fast path
+                                            const s = await redis.get(dataKey);
+                                            if (s) {
+                                                log.debug(`[preNavHost.wait] fast path hit for key=${key}, data length=${s.length}`);
+                                                try { return JSON.parse(s); } catch { return s; }
+                                            }
+                                            // Wait on signal
+                                            log.debug(`[preNavHost.wait] waiting on signal for key=${key}, sigKey=${sigKey}`);
+                                            const timeoutMs = opts?.timeoutMs ?? 30000;
+                                            const timeoutSec = Math.max(1, Math.ceil(timeoutMs / 1000));
+                                            try { await redis.blpop(sigKey, timeoutSec); } catch { /* ignore */ }
+                                            const after = await redis.get(dataKey);
+                                            if (after) {
+                                                log.debug(`[preNavHost.wait] data retrieved after wait for key=${key}, data length=${after.length}`);
+                                                try { return JSON.parse(after); } catch { return after; }
+                                            }
+                                            // Timeout - return undefined instead of throwing error
+                                            log.warning(`[preNavHost.wait] timeout for key=${key} (waited ${timeoutMs}ms) - returning undefined`);
+                                            return undefined;
+                                        },
+                                        get: async (key: string) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            log.debug(`[preNavHost.get] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
+                                            const s = await redis.get(dataKey);
+                                            if (!s) {
+                                                log.debug(`[preNavHost.get] no data found for key=${key}`);
+                                                return undefined;
+                                            }
+                                            log.debug(`[preNavHost.get] data found for key=${key}, data length=${s.length}`);
+                                            try { return JSON.parse(s); } catch { return s; }
+                                        },
+                                        has: async (key: string) => {
+                                            const redis = Utils.getInstance().getRedisConnection();
+                                            const jobId = context.request.userData?.jobId || 'unknown';
+                                            const requestId = context.request.uniqueKey || 'unknown';
+                                            const ns = `${jobId}:${requestId}:${key}`;
+                                            const dataKey = `prenav:data:${ns}`;
+                                            log.debug(`[preNavHost.has] jobId=${jobId}, requestId=${requestId}, key=${key}, dataKey=${dataKey}`);
+                                            const exists = await redis.exists(dataKey);
+                                            log.debug(`[preNavHost.has] key=${key}, exists=${exists}`);
+                                            return !!exists;
+                                        }
+                                    }
                                 };
+
+                                log.debug(`[templateExecutionContext] created with keys: ${Object.keys(templateExecutionContext).join(',')}, preNavHost exists: ${!!templateExecutionContext.preNavHost}`);
 
                                 log.info(`[${context.request.userData.queueName}] [${context.request.userData.jobId}] Template execution started: ${templateId}`);
                                 const result = await this.templateClient!.executeTemplate(templateId as string, templateExecutionContext);

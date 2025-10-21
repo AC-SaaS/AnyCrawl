@@ -24,7 +24,17 @@ export class TemplateClient {
     private dbReady: Promise<void>;
 
     constructor(config?: TemplateClientConfig) {
-        this.cache = new TemplateCache(config?.cacheConfig);
+        // Resolve cache TTL from env (0 disables cache; >0 sets TTL in ms)
+        const ttlFromEnvRaw = process.env.ANYCRAWL_TEMPLATE_CACHE_TTL_MS || process.env.TEMPLATE_CACHE_TTL_MS;
+        let effectiveCacheConfig = config?.cacheConfig;
+        if (ttlFromEnvRaw !== undefined) {
+            const parsedTtl = parseInt(ttlFromEnvRaw, 10);
+            if (!Number.isNaN(parsedTtl) && parsedTtl >= 0) {
+                effectiveCacheConfig = { ...(effectiveCacheConfig || {}), ttl: parsedTtl } as any;
+            }
+        }
+
+        this.cache = new TemplateCache(effectiveCacheConfig);
         this.sandbox = new QuickJSSandbox(config?.sandboxConfig);
         this.validator = new TemplateCodeValidator();
         this.dbReady = this.initializeDatabase();
@@ -41,9 +51,8 @@ export class TemplateClient {
         await this.dbReady;
         // 1. Check cache first
         let template = await this.cache.get(templateId);
-        const isDevelopment = process.env.NODE_ENV === 'development';
-        if (!template && !isDevelopment) {
-            // 2. Get from database
+        // 2. Get from database on cache miss (development and production)
+        if (!template) {
             const result = await this.db
                 .select()
                 .from(schemas.templates)
@@ -129,14 +138,16 @@ export class TemplateClient {
             // If custom handler is enabled, execute it and return only template enhancements
             if (template.customHandlers?.requestHandler?.enabled) {
                 // Execute custom handler with scrape result context
+                const sandboxContext = {
+                    template,
+                    executionContext: { ...context, scrapeResult: context.scrapeResult || {} },
+                    variables: context.variables || {},
+                    page: (context as any).page, // Pass page object for browser-based templates
+                };
+
                 const customResult = await this.sandbox.executeCode(
                     template.customHandlers.requestHandler.code.source,
-                    {
-                        template,
-                        executionContext: { ...context, scrapeResult: context.scrapeResult || {} },
-                        variables: context.variables || {},
-                        page: (context as any).page, // Pass page object for browser-based templates
-                    }
+                    sandboxContext
                 );
 
                 // Return only the custom handler result (template enhancements)

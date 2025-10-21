@@ -1,4 +1,6 @@
 import { AD_DOMAINS, log } from "@anycrawl/libs";
+import { minimatch } from "minimatch";
+import { Utils } from "../Utils.js";
 import { BrowserName } from "crawlee";
 import { ProgressManager } from "../managers/Progress.js";
 import { JOB_TYPE_CRAWL } from "@anycrawl/libs";
@@ -146,6 +148,20 @@ export class EngineConfigurator {
     }
 
     private static configureBrowserEngine(options: any, engineType: ConfigurableEngineType): void {
+        // Enforce viewport for browser engines
+        const viewportHook = async ({ page }: any) => {
+            try {
+                if (!page) return;
+                if ((page as any).__viewportApplied) return;
+                (page as any).__viewportApplied = true;
+                if (engineType === ConfigurableEngineType.PLAYWRIGHT) {
+                    await page.setViewportSize({ width: 1920, height: 1080 });
+                } else if (engineType === ConfigurableEngineType.PUPPETEER) {
+                    try { await page.setViewport({ width: 1920, height: 1080 }); } catch { }
+                }
+            } catch { }
+        };
+
         // Ad blocking configuration
         const adBlockingHook = async ({ page }: any) => {
             const shouldBlock = (url: string) => AD_DOMAINS.some(domain => url.includes(domain));
@@ -176,7 +192,7 @@ export class EngineConfigurator {
         // set request timeout and faster navigation for each request
         const requestTimeoutHook = async ({ request }: any, gotoOptions: any) => {
             const timeoutMs = request.userData.options.timeout || (process.env.ANYCRAWL_NAV_TIMEOUT ? parseInt(process.env.ANYCRAWL_NAV_TIMEOUT) : 30_000);
-            const waitUntil = (request.userData.options.waitUntil || process.env.ANYCRAWL_NAV_WAIT_UNTIL || 'domcontentloaded') as any;
+            const waitUntil = (request.userData.options.wait_until || process.env.ANYCRAWL_NAV_WAIT_UNTIL || 'domcontentloaded') as any;
             log.debug(`Setting navigation for ${request.url} to timeout=${timeoutMs}ms waitUntil=${waitUntil}`);
             gotoOptions.timeout = timeoutMs;
             gotoOptions.waitUntil = waitUntil;
@@ -245,11 +261,210 @@ export class EngineConfigurator {
             }
         };
 
+        // Pre-navigation capture hook for preNav rules
+        const preNavHook = async ({ page, request }: any) => {
+            try {
+                log.debug(`[preNavHook] called with page=${!!page}, request=${!!request}, url=${request?.url}`);
+                if (!page || !request) {
+                    log.warning(`[preNavHook] missing page or request, skipping`);
+                    return;
+                }
+                const templateId = request.userData?.options?.template_id || request.userData?.templateId;
+                log.debug(`[preNavHook] templateId=${templateId}, url=${request.url}`);
+                if (!templateId) {
+                    log.debug(`[preNavHook] no templateId found, skipping preNav setup`);
+                    return;
+                }
+
+                // Load template to read preNav rules
+                let template: any = null;
+                try {
+                    const { TemplateClient } = await import('@anycrawl/template-client');
+                    const tc = new TemplateClient();
+                    template = await tc.getTemplate(templateId);
+                    log.debug(`[preNavHook] template loaded successfully: ${templateId}`);
+                } catch (e) {
+                    log.error(`[preNavHook] failed to load template ${templateId}: ${e}`);
+                    return;
+                }
+                const preNav = template?.customHandlers?.preNav;
+                if (!Array.isArray(preNav) || preNav.length === 0) {
+                    log.debug(`[preNav] disabled or empty for templateId=${templateId} url=${request.url}`);
+                    return;
+                }
+
+                type Rule = { type: 'exact' | 'glob' | 'regex'; pattern: string; re?: RegExp };
+                type KeyCfg = { key: string; rules: Rule[]; done: boolean };
+
+                const keyCfgs: KeyCfg[] = preNav.map((cfg: any) => ({
+                    key: String(cfg?.key ?? ''),
+                    rules: Array.isArray(cfg?.rules) ? cfg.rules.map((r: any) => {
+                        const type = r?.type;
+                        const pattern = String(r?.pattern ?? '');
+                        if (type === 'regex') {
+                            let re: RegExp | undefined;
+                            try { re = new RegExp(`^(?:${pattern})$`); } catch { re = undefined; }
+                            return { type: 'regex', pattern, re } as Rule;
+                        }
+                        if (type === 'glob') return { type: 'glob', pattern } as Rule;
+                        return { type: 'exact', pattern } as Rule;
+                    }) : [],
+                    done: false,
+                })).filter(k => k.key && k.rules.length > 0);
+
+                if (keyCfgs.length === 0) {
+                    log.debug(`[preNav] no valid rules after parsing for templateId=${templateId}`);
+                    return;
+                }
+
+                const redis = Utils.getInstance().getRedisConnection();
+                const jobId = request.userData?.jobId || 'unknown';
+                const requestId = request.uniqueKey || `${Date.now()}`;
+                console.log(`[preNav] enabled! jobId=${jobId}, requestId=${requestId}, keys=[${keyCfgs.map(k => k.key).join(', ')}]`);
+                log.debug(`[preNav] enabled templateId=${templateId} jobId=${jobId} requestId=${requestId} keys=[${keyCfgs.map(k => k.key).join(', ')}]`);
+
+                const matchUrl = (url: string, rules: Rule[]): boolean => {
+                    for (const r of rules) {
+                        if (r.type === 'exact') {
+                            if (url === r.pattern) return true;
+                        } else if (r.type === 'glob') {
+                            try { if (minimatch(url, r.pattern, { dot: true })) return true; } catch { /* ignore */ }
+                        } else if (r.type === 'regex') {
+                            if (r.re && r.re.test(url)) return true;
+                        }
+                    }
+                    return false;
+                };
+
+                // Response listener: match URL and capture payload
+                const onResponse = async (response: any) => {
+                    try {
+                        const url = typeof response.url === 'function' ? response.url() : (response.url || '');
+                        if (!url) return;
+                        const verbose = process.env.ANYCRAWL_PRENAV_VERBOSE === '1' || process.env.ANYCRAWL_PRENAV_VERBOSE === 'true';
+
+                        // Only continue (and optionally log) if the URL matches at least one pending rule
+                        // or verbose mode is explicitly enabled
+                        const candidate = keyCfgs.some(k => !k.done && matchUrl(url, k.rules));
+                        if (!candidate && !verbose) return;
+                        if (verbose) {
+                            const pending = keyCfgs.filter(k => !k.done).length;
+                            log.debug(`[preNav] response url=${url} pendingKeys=${pending}`);
+                        }
+
+                        // Find first not-done key that matches
+                        for (const cfg of keyCfgs) {
+                            if (cfg.done) continue;
+                            if (!matchUrl(url, cfg.rules)) continue;
+                            log.debug(`[preNav] matched key=${cfg.key} url=${url}`);
+
+                            // Collect response metadata
+                            let status = 0;
+                            try { status = typeof response.status === 'function' ? response.status() : (response.status || 0); } catch { }
+                            let headers: Record<string, string> = {};
+                            try { headers = typeof response.headers === 'function' ? (await response.headers()) : (response.headers || {}); } catch { }
+                            const lowerHeaders: Record<string, string> = {};
+                            for (const [k, v] of Object.entries(headers || {})) lowerHeaders[k.toLowerCase()] = Array.isArray(v) ? String(v[0]) : String(v);
+
+                            // Always capture text body
+                            let body: string | undefined = undefined;
+                            try {
+                                body = await response.text();
+                            } catch { /* ignore body parse errors */ }
+
+                            // If body is empty (including content-length: 0), skip capturing for this response
+                            const contentLengthHeader = (lowerHeaders as any)['content-length'];
+                            let reportedLength = 0;
+                            try { reportedLength = contentLengthHeader ? parseInt(String(contentLengthHeader)) : 0; } catch { reportedLength = 0; }
+                            const hasBody = (typeof body === 'string' && body.length > 0) || reportedLength > 0;
+                            if (!hasBody) {
+                                log.debug(`[preNav] empty body, skip capture key=${cfg.key} url=${url}`);
+                                continue;
+                            }
+
+                            // Cookies snapshot (raw from engine, no normalization for now)
+                            let cookiesRaw: any[] = [];
+                            try {
+                                const ctx = typeof page.context === 'function' ? page.context() : undefined;
+                                if (ctx && typeof ctx.cookies === 'function') {
+                                    cookiesRaw = await ctx.cookies(url);
+                                } else if (typeof page.cookies === 'function') {
+                                    cookiesRaw = await page.cookies(url);
+                                }
+                            } catch { /* ignore */ }
+
+                            // Raw Set-Cookie header values (no parsing)
+                            const setCookieHeader = (headers as any)?.['set-cookie'] ?? (lowerHeaders as any)['set-cookie'];
+                            const setCookieRaw: string[] = Array.isArray(setCookieHeader)
+                                ? setCookieHeader as string[]
+                                : (typeof setCookieHeader === 'string' ? [setCookieHeader] : []);
+
+                            // Method
+                            let method: string | undefined = undefined;
+                            try { const req = typeof response.request === 'function' ? response.request() : undefined; method = req && typeof req.method === 'function' ? req.method() : undefined; } catch { }
+
+                            const payload = {
+                                key: cfg.key,
+                                url,
+                                method,
+                                status,
+                                headers: lowerHeaders,
+                                body,
+                                matchedAt: Date.now(),
+                                cookiesRaw,
+                                setCookieRaw,
+                            };
+
+                            const ns = `${jobId}:${requestId}:${cfg.key}`;
+                            const dataKey = `prenav:data:${ns}`;
+                            const sigKey = `prenav:sig:${ns}`;
+                            try {
+                                const payloadStr = JSON.stringify(payload);
+                                log.debug(`[preNav] storing payload for key=${cfg.key}, dataKey=${dataKey}, payload size=${payloadStr.length}, keys=${Object.keys(payload).join(',')}`);
+                                log.debug(`[preNav] payload preview: ${payloadStr.substring(0, 300)}`);
+                                const res = await (redis as any).set(dataKey, payloadStr, 'EX', 1800);
+                                log.debug(`[preNav] redis.set result=${res} for dataKey=${dataKey}`);
+                                if (res === 'OK') {
+                                    log.debug(`[preNav] redis.lpush sigKey=${sigKey}`);
+                                    await (redis as any).lpush(sigKey, '1');
+                                    log.info(`[preNav] ✓ Successfully captured and stored data for key=${cfg.key}, url=${url}`);
+                                } else {
+                                    log.warning(`[preNav] redis.set returned ${res} instead of OK for key=${cfg.key}`);
+                                }
+                            } catch (e) {
+                                log.error(`[preNav] redis error for key=${cfg.key}: ${e instanceof Error ? e.message : String(e)}`);
+                            }
+
+                            cfg.done = true;
+                        }
+
+                        // If all done, cleanup
+                        if (keyCfgs.every(k => k.done)) {
+                            log.debug(`[preNav] all keys satisfied, cleaning up listeners`);
+                            try { page.off('response', onResponse); } catch { }
+                        }
+                    } catch (err) {
+                        log.error(`[preNav] onResponse error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                };
+
+                page.on('response', onResponse);
+                log.debug(`[preNavHook] response listener attached successfully`);
+                page.once('close', () => {
+                    log.debug(`[preNav] page closed, cleaning up listeners`);
+                    try { page.off('response', onResponse); } catch { }
+                });
+            } catch (err) {
+                log.error(`[preNavHook] unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+                log.error(`[preNavHook] stack: ${err instanceof Error ? err.stack : 'N/A'}`);
+            }
+        };
+
         // Add browser-specific hooks to preNavigationHooks
         const existingHooks = options.preNavigationHooks || [];
-        options.preNavigationHooks = [adBlockingHook, requestTimeoutHook, authenticationHook, ...existingHooks];
+        options.preNavigationHooks = [viewportHook, adBlockingHook, requestTimeoutHook, authenticationHook, preNavHook, ...existingHooks];
 
-        log.debug(`[EngineConfigurator] Browser-specific hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, existingHooks=${existingHooks.length}`);
+        log.info(`[EngineConfigurator] Browser-specific hooks configured for ${engineType}: total=${options.preNavigationHooks.length}, hooks=[viewport, adBlocking, requestTimeout, authentication, preNav], existingHooks=${existingHooks.length}`);
 
         // Apply headless configuration from environment
         if (options.headless === undefined) {

@@ -189,6 +189,42 @@ export class Job {
     }
 
     /**
+     * Sanitize malformed Unicode characters from data to prevent PostgreSQL JSONB errors.
+     * Recursively cleans strings, arrays, and object properties.
+     * @param data - The data to sanitize
+     * @returns Sanitized data safe for PostgreSQL JSONB
+     */
+    private static sanitizeUnicode(data: any): any {
+        if (data === null || data === undefined) {
+            return data;
+        }
+
+        if (typeof data === 'string') {
+            // Replace unpaired surrogates with Unicode replacement character (U+FFFD)
+            // This regex matches:
+            // - High surrogates (U+D800 to U+DBFF) not followed by low surrogates
+            // - Low surrogates (U+DC00 to U+DFFF) not preceded by high surrogates
+            return data
+                .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '\uFFFD') // unpaired high surrogate
+                .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD'); // unpaired low surrogate
+        }
+
+        if (Array.isArray(data)) {
+            return data.map(item => Job.sanitizeUnicode(item));
+        }
+
+        if (typeof data === 'object') {
+            const sanitized: any = {};
+            for (const [key, value] of Object.entries(data)) {
+                sanitized[key] = Job.sanitizeUnicode(value);
+            }
+            return sanitized;
+        }
+
+        return data;
+    }
+
+    /**
      * Insert a job result into the job_results table
      * @param jobId - The string ID of the job
      * @param url - The URL that was processed
@@ -204,17 +240,20 @@ export class Job {
             throw new Error(`Job with ID ${jobId} not found`);
         }
 
+        // Sanitize data to prevent PostgreSQL JSONB errors from malformed Unicode
+        const sanitizedData = Job.sanitizeUnicode(data);
+
         await db.insert(schemas.jobResults).values({
             jobUuid: job.uuid, // Use the job's UUID as foreign key
             url: url,
-            data: data,
+            data: sanitizedData,
             status: status,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
 
         try {
-            const dataType = data === null || data === undefined ? "null" : Array.isArray(data) ? `array(len=${data.length})` : typeof data;
+            const dataType = sanitizedData === null || sanitizedData === undefined ? "null" : Array.isArray(sanitizedData) ? `array(len=${sanitizedData.length})` : typeof sanitizedData;
             log.info(`[DB][JobResult] Inserted result job_id=${jobId} url=${url} status=${status} dataType=${dataType}`);
         } catch { }
     }
